@@ -13,10 +13,38 @@ Build and test your three tools in `tools.py` first. Then come here.
     python agent.py          runs both example paths below
 """
 
+import re
+
 import config
 import trace
 from tools import search_listings, suggest_outfit, create_fit_card
 from generate import ModelUnavailable
+
+_PRICE_PATTERN = re.compile(r"under\s*\$?\s*(\d+(?:\.\d+)?)", re.IGNORECASE)
+_SIZE_PATTERN = re.compile(r"size\s+([A-Za-z0-9/.\-]+)", re.IGNORECASE)
+
+
+def _parse_query(query: str) -> dict:
+    """
+    Pull a max_price and a size out of a free-text query, regex-based.
+
+    "vintage graphic tee under $30" -> description="vintage graphic tee",
+    size=None, max_price=30.0
+    "90s track jacket in size M"    -> description="90s track jacket",
+    size="M", max_price=None
+    """
+    price_match = _PRICE_PATTERN.search(query)
+    max_price = float(price_match.group(1)) if price_match else None
+
+    size_match = _SIZE_PATTERN.search(query)
+    size = size_match.group(1) if size_match else None
+
+    description = _PRICE_PATTERN.sub("", query)
+    description = _SIZE_PATTERN.sub("", description)
+    description = re.sub(r"\bin\b", " ", description, flags=re.IGNORECASE)
+    description = re.sub(r"\s+", " ", description).strip(" ,")
+
+    return {"description": description, "size": size, "max_price": max_price}
 
 
 # ── session state ─────────────────────────────────────────────────────────────
@@ -106,9 +134,39 @@ def run_agent(query: str, wardrobe: dict) -> dict:
         than a stack trace. The import is already at the top of this file.
     """
     session = new_session(query, wardrobe)
+    count = 0
 
-    # TODO: delete these two lines and build the loop.
-    session["error"] = "The planning loop isn't built yet — see the TODO in agent.py."
+    count += 1
+    trace.check_iterations(count)
+    session["parsed"] = _parse_query(query)
+
+    count += 1
+    trace.check_iterations(count)
+    session["search_results"] = search_listings(
+        description=session["parsed"]["description"],
+        size=session["parsed"]["size"],
+        max_price=session["parsed"]["max_price"],
+    )
+
+    if not session["search_results"]:
+        session["error"] = (
+            "No listings matched that description, size, and price. Try a "
+            "plainer description, a higher max_price, or dropping the size."
+        )
+        return session
+
+    session["selected_item"] = session["search_results"][0]
+
+    count += 1
+    trace.check_iterations(count)
+    session["outfit_suggestion"] = suggest_outfit(session["selected_item"], wardrobe)
+
+    count += 1
+    trace.check_iterations(count)
+    session["fit_card"] = create_fit_card(
+        session["outfit_suggestion"], session["selected_item"]
+    )
+
     return session
 
 
