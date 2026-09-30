@@ -25,9 +25,12 @@ Given a query that matches at least one listing, the agent completes all three
 tool calls and returns a fit card — in at least 4 of 5 tries.
 
 **Why this target:**
-<!-- Why 4 of 5 and not 5 of 5? Something about your search, probably —
-     "my search is a plain keyword match and some phrasings will miss" is a
-     real answer. -->
+`search_listings` scores matches by plain keyword overlap between the parsed
+description and each listing's title/description/tags — there's no synonym
+handling, so a phrasing that doesn't share a word with the listing text (e.g.
+"tee" when the listing only says "shirt") can legitimately score zero even
+though a human would call it a match. 4 of 5 leaves room for that class of
+miss without excusing an actual bug, which 3 of 5 or lower would start to do.
 
 ---
 
@@ -37,64 +40,61 @@ Given a query that matches no listings, the agent stops before calling
 `suggest_outfit` and returns a message naming what to change — 5 of 5 tries.
 
 **Why this target:**
-<!-- Why is 5 of 5 reasonable here when criterion 1 isn't? What's different
-     about this path? -->
+Unlike criterion 1, this path doesn't depend on the model guessing right or
+the keyword scorer being generous — it's an `if not results:` branch in my
+own code, checked the same way every time. Nothing here is allowed to vary
+run to run, so anything short of 5 of 5 would mean the branch itself is
+broken, not that the task was hard.
 
 ---
 
 ## 3. Something about state
 
-<!-- YOU WRITE THIS ONE.
-
-     How would you know that the item your search found is the same item the
-     next tool received? Name something countable or observable.
-
-     This is the criterion people find hardest, because state failure doesn't
-     look like state failure — it looks like a tool problem. Something that
-     compares session["selected_item"] against what actually reached
-     suggest_outfit is the shape you're after. -->
-
-
+For a matching query, the `id` of `session["selected_item"]` recorded right
+after `search_listings` returns is identical to the `id` of the `new_item`
+dict that `suggest_outfit` is actually called with — checked by printing both
+ids — in 5 of 5 tries.
 
 **Why this target:**
-
-
+This is a plain dict assignment and a function argument, not model output —
+nothing about it is supposed to vary from run to run. If the id ever
+mismatched, that would mean the session was overwritten or a stale variable
+was passed around it instead of through it, which is a real bug, not noise. A
+target below 5 of 5 would be hiding that bug behind an acceptable failure
+rate.
 
 ---
 
 ## 4. Something about the fit card
 
-<!-- YOU WRITE THIS ONE.
-
-     The fit card calls a model, so the same input can produce different words
-     each time. That's not a bug — it's the nature of the tool. So what would
-     make it acceptable?
-
-     Think about what you'd actually be unhappy to see. A caption that never
-     mentions the price? Two different items producing the same opening
-     sentence? A card longer than a caption anyone would post? Any of those can
-     be turned into a number. -->
-
-
+Across 5 runs on 5 different items, every fit card mentions that item's exact
+price (e.g. "$24.00" or "24") at least once — 5 of 5 tries — and no two of the
+five cards share the same opening sentence.
 
 **Why this target:**
-
-
+The price is data I hand the model in the prompt, not something it has to
+invent, so there's no reason it should ever get dropped — 5 of 5 is fair.
+The opening-sentence check is the part that has to tolerate the model: at
+TEMPERATURE 0.9 I expect genuinely different wording for different items, but
+I'd be unhappy if the model fell back to one template. Uniqueness across only
+5 samples is a low bar for "isn't a template," not a claim that it never
+repeats at any scale.
 
 ---
 
 ## 5. Your choice
 
-<!-- YOU WRITE THIS ONE TOO.
-
-     Pick something you actually care about getting right. Speed, the empty
-     wardrobe path, what happens when the model can't be reached, whether the
-     search respects a price ceiling — anything, as long as it names a number
-     or an observable outcome. -->
-
-
+Given a `max_price`, every listing `search_listings` returns has
+`price <= max_price`, checked across 5 different queries with 5 different
+price ceilings — 5 of 5 tries.
 
 **Why this target:**
+Price filtering is a numeric comparison in my own code with no model in the
+loop, so there's no source of legitimate variation — a ceiling that lets
+through one overpriced item isn't bad luck, it's an off-by-one or a skipped
+filter. This is the criterion I'd trust least if I set it below 5 of 5,
+because a miss here means the tool is lying about what it filtered, not that
+the data was ambiguous.
 
 
 
