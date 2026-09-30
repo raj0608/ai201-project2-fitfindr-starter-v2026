@@ -95,25 +95,42 @@ guessing.
 **One full query**
 
 ```
-$ python app.py ask '...'
+$ python app.py ask 'vintage graphic tee under $30'
 
+  Found:    Y2K Baby Tee — Butterfly Print — $18.0 on depop
+
+  Outfit:   Pair the Y2K butterfly baby tee with your baggy dark-wash straight-leg jeans to nail that classic high-low proportion play. Throw on your black cropped zip hoodie and chunky white sneakers to lean fully into the nostalgic 2000s aesthetic.
+
+  Fit card: Obsessed with this Y2K butterfly baby tee I just scored on Depop for only $18! The print is giving total early 2000s pop star off-duty, especially paired with baggy dark wash denim and chunky sneakers. Such a good addition to the rotation.
+
+2 model calls this session, 357 prompt + 112 output tokens
 ```
 
 **The three tools, tested one at a time**
 
 ```
 $ python -c "from tools import search_listings; print(search_listings('graphic tee', max_price=30))"
-
+[{'id': 'lst_002', 'title': 'Y2K Baby Tee — Butterfly Print', 'price': 18.0, 'size': 'S/M', ...},
+ {'id': 'lst_006', 'title': 'Graphic Tee — 2003 Tour Bootleg Style', 'price': 24.0, 'size': 'L', ...},
+ ... 6 results total, best keyword match first, all priced $30 or under
 ```
 
 ```
-$ python -c "from tools import suggest_outfit; ..."
-
+$ python -c "
+from tools import suggest_outfit
+from utils.data_loader import get_example_wardrobe, load_listings
+print(suggest_outfit(load_listings()[0], get_example_wardrobe()))
+"
+Pair the vintage medium-wash Levi's with the white ribbed tank top and the vintage black denim jacket for a classic, textured contrast, then ground the look with your black combat boots and the black crossbody bag. Add the brown leather belt to tie the look together with a subtle warm accent.
 ```
 
 ```
-$ python -c "from tools import create_fit_card; ..."
-
+$ python -c "
+from tools import create_fit_card
+from utils.data_loader import load_listings
+print(create_fit_card('Pair with a white tank top and black combat boots.', load_listings()[0]))
+"
+Manifested these vintage Levi's 501 jeans on Depop and still can't believe they were only $38. They've got that *exact* 90s slouch I've been hunting for forever. Just throwing them on with a white tank and black combat boots for the ultimate effortless weekend uniform.
 ```
 
 ---
@@ -129,15 +146,15 @@ $ python -c "from tools import create_fit_card; ..."
 
 **Moment 1**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* Help designing the size-matching logic for `search_listings` so a query for size "M" matches listing sizes like "S/M" and "M/L" but not "XL" or "US 9".
+- *What came back:* A token-based match — strip any parenthetical note off the listing's size string, split what's left on slashes and spaces, and check whether the query size equals a whole token (or the whole normalized string, for phrases like "One Size").
+- *What I changed:* Nothing in the approach — I ran it against every distinct size value in `data/listings.json` by hand (`"L" matches "XL"?` → False, `"M" matches "S/M"?` → True) before trusting it, since the docstring specifically calls out that a plain substring test passes both of those wrong.
 
 **Moment 2**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* How to turn a free-text query like "90s track jacket in size M" into `description`/`size`/`max_price` without spending a model call on something this mechanical.
+- *What came back:* Two regexes — one for `under $N`, one for `size X` — pulled out first, with whatever's left over treated as the description.
+- *What I changed:* The first pass left a stray "in" in descriptions like "track jacket in size M" once the size phrase was stripped out, so I added a step to drop the standalone word "in" too, rather than letting it sit in the keyword set that `search_listings` scores against.
 
 <!-- ═══════════════════════ UNIT 4 — THE TEST ═══════════════════════
 
