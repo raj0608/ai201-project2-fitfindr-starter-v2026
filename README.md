@@ -156,6 +156,12 @@ Manifested these vintage Levi's 501 jeans on Depop and still can't believe they 
 - *What came back:* Two regexes — one for `under $N`, one for `size X` — pulled out first, with whatever's left over treated as the description.
 - *What I changed:* The first pass left a stray "in" in descriptions like "track jacket in size M" once the size phrase was stripped out, so I added a step to drop the standalone word "in" too, rather than letting it sit in the keyword set that `search_listings` scores against.
 
+**Moment 3 (Unit 4)**
+
+- *What I asked for:* After the Before run, I had 5 fit cards for criterion 4 and wasn't sure whether 2 of them really counted as sharing an "opening sentence" — one pair both started with "Score!" but the rest of the sentence differed. I asked for the opposite case: an argument that they *don't* actually violate the criterion.
+- *What came back:* The strongest version of that argument is that "opening sentence" should mean the first substantive clause, not a one-word interjection — by that reading, "Score!" isn't a sentence, it's punctuation-adjacent filler, and the two cards' real openings ("Found this..." vs. "Just snagged...") are distinct.
+- *What I changed:* Nothing — I kept the stricter, literal reading (first run of text up to the first sentence-ending punctuation) because that's what I'd actually written in `criteria.md`, and loosening the definition after seeing an inconvenient result is exactly the kind of after-the-fact criterion-softening the brief says not to do. I verified it programmatically (splitting on `.`/`!`/`?`) rather than trusting my own eyeballing, which is what caught the duplicate in the first place.
+
 <!-- ═══════════════════════ UNIT 4 — THE TEST ═══════════════════════
 
      Don't fill these in during unit 3.
