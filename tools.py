@@ -229,7 +229,10 @@ def create_fit_card(outfit: str, new_item: dict) -> str:
         f"Styling idea: {outfit}\n\n"
         "Mention the item, the price, and the platform once each. Make it "
         "sound like a real person's post, not a product listing. Be "
-        "specific about the vibe."
+        "specific about the vibe. Don't open with a generic reaction word "
+        "like \"Score!\", \"Found\", or \"Scored\" — start the first "
+        "sentence with something specific to this item instead, like its "
+        "color, print, era, or fabric."
     )
     system = "You write short, casual social captions for secondhand fashion finds."
     return generate(prompt, system=system)

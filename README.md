@@ -401,34 +401,98 @@ the expected result: MCP changes how the call is made, not what comes back.
 
      `python run_eval.py --label after` -->
 
-**What I changed:**
+**What I changed:** One sentence added to the `create_fit_card` prompt in
+`tools.py` (around line 230): *"Don't open with a generic reaction word like
+'Score!', 'Found', or 'Scored' — start the first sentence with something
+specific to this item instead, like its color, print, era, or fabric."*
+Nothing else in `tools.py`, `agent.py`, or `mcp_server.py` changed.
 
-**Which failure it was meant to fix:**
+**Which failure it was meant to fix:** Criterion 4's opening-sentence miss
+from the Before run — 2 of 5 fit cards (track jacket, denim jacket) both
+opened with the exact same bare interjection, "Score!".
 
 ### Run Log — After
 
+Produced by `python run_eval.py --label after` (writes
+`results/run_2026-10-07_1903_after.md`, same 14 scenarios × 5 tries, cache
+off, 130 model calls).
+
 | Criterion | Target | Try 1 | Try 2 | Try 3 | Try 4 | Try 5 | Verdict |
 |---|---|---|---|---|---|---|---|
-| 1.  |  |  |  |  |  |  |  |
-| 2.  |  |  |  |  |  |  |  |
-| 3.  |  |  |  |  |  |  |  |
-| 4.  |  |  |  |  |  |  |  |
-| 5.  |  |  |  |  |  |  |  |
+| 1. Matching query completes all three tools | 4 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 2. Impossible query stops before tool 2 | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 3. selected_item id matches what suggest_outfit receives | 5 of 5 | — | — | — | — | — | MET (5/5, unaffected — neither `agent.py` nor `search_listings`/`suggest_outfit` changed) |
+| 4. Fit card: price mentioned (5/5) + no shared opening sentence | 5 of 5 each | price PASS, opening PASS | price PASS, opening PASS | price **FAIL**, opening PASS | price PASS, opening PASS | price PASS, opening PASS | MISSED (openings 5/5 fixed; price now 4/5) |
+| 5. Every search result respects max_price | 5 of 5 | — | — | — | — | — | MET (5/5, unaffected — `search_listings` wasn't touched) |
 
-**Did it help, and how do I know:**
+Criteria 3 and 5 weren't re-run with fresh model calls — the only change this
+unit touches is `create_fit_card`'s prompt, and neither criterion exercises
+that function, so re-running them would just reproduce the identical Before
+result at the cost of more quota.
 
-<!-- If it made things worse, say that. Honestly reported, that earns full
-     credit and is more interesting than one that worked. -->
+**Real output — the five fit cards, try 1 of each item scenario**
+(`results/run_2026-10-07_1903_after.md`, lines 702-1636):
 
+```
+1. graphic tee ($18):  "That little butterfly print is just pure early 2000s
+   magic, and I honestly can't believe I snagged this Y2K baby tee on Depop
+   for only $18. ..."
+2. track jacket ($45.00): "That crisp navy and white stripe is screaming
+   major 90s nostalgia. I couldn't pass up this vintage track jacket for
+   just $45.00 once I spotted it on Poshmark. ..."
+3. slip dress ($30): "Ditsy florals and liquid silk scream peak 90s, so I
+   had to grab this midi slip dress when I saw it on Depop. For just thirty
+   bucks, it's practically begging to be worn ... ..."
+4. sneakers ($48): "Crisp white leather and a chunky sole are about to
+   become my entire personality. Snagged these platform sneakers on
+   Poshmark for just $48 ..."
+5. denim jacket ($42): "That breezy light wash denim jacket I just snagged
+   on Poshmark is honestly the ultimate throw-on-and-go piece. For only
+   $42 ..."
+```
 
+**Did it help, and how do I know:** Partly. The targeted failure is fixed —
+all 5 openings are distinct now (verified the same way as Before: split each
+card on its first sentence-ending punctuation and compared), where Before had
+an exact duplicate. But the same run surfaced a different, previously-unseen
+miss on the same criterion: card 3 (slip dress) wrote the price as "thirty
+bucks" instead of a digit form like "$30", which fails the strict
+price-mention check I wrote ("$24.00" or "24"). I didn't cause this by
+editing the prompt — the prompt never specified digit form either before or
+after — it's a case the Before run's 5 samples simply didn't happen to hit.
+So: the opening-sentence sub-check went from MISSED to MET, and the
+price-mention sub-check went from MET (5/5) to MISSED (4/5), on the same
+criterion, in the same run. Net result: criterion 4 is still MISSED overall,
+but the mechanism behind the miss changed, which is itself useful information
+— see What's Still Broken.
 
 ---
 
 ## What's Still Broken
 
-<!-- For each criterion still missed: what you'd do, and why you stopped where
-     you did. "I ran out of time" is fine if it's true. Pretending nothing is
-     left is not. -->
+Criterion 4 (fit card) is still MISSED after one improvement, though the
+specific sub-check that fails changed:
+
+**The price-mention sub-check (now 4 of 5).** The prompt asks the model to
+"mention... the price" but never says in what form. Spelling it out
+("thirty bucks") satisfies a human reader fine but fails my strict
+digit-form check. What I'd do next: add one more sentence to the prompt —
+"Write the price as a dollar figure like '$30', not spelled out" — and
+re-run. I stopped here because this unit caps me at one measured change, and
+I'd rather report this honestly as a new, smaller, separately-diagnosed miss
+than fold it into the same "improvement" and muddy which fix did what.
+
+**The underlying tension.** Both misses (the original duplicate opener and
+this one) come from the same root cause: the prompt constrains content
+("mention the price," "be specific about the vibe") but not *form* ("as a
+digit," "not a stock phrase"), and at `TEMPERATURE = 0.9` the model is free
+to vary in ways I haven't ruled out. Each fix I add closes one gap and, on 5
+samples, there's a reasonable chance another one I haven't anticipated shows
+up. A sturdier long-term fix would be validating the fit card's shape in code
+after generation (check for a `$` digit sequence, re-prompt or fall back if
+missing) rather than only steering the prompt — I didn't attempt that here
+because it's a tool-logic change, and this unit's rule was one change,
+measured properly.
 
 
 
