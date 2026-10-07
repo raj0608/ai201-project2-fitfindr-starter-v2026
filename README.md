@@ -247,12 +247,20 @@ that produced it:
 
 ```
 
-**On the MCP move:** <!-- what changed in your code, and whether anything
-behaved differently afterwards. If the rewire didn't work, say exactly where it
-broke — the error text and the last thing that worked. That earns the point in
-full. -->
+**On the MCP move:** Moved `search_listings` behind MCP — it was the natural
+pick since it doesn't call the model. Registered it in `mcp_server.py` with a
+docstring written for a reader who can't see the implementation (names the
+size-matching rule and the empty-list contract explicitly, since a different
+agent can't infer either from code it'll never see). In `agent.py::run_agent`,
+the direct call `search_listings(description=..., size=..., max_price=...)`
+became `call_tool("search_listings", {...})`, imported from `mcp_client`
+instead of `tools`. `suggest_outfit` and `create_fit_card` are unchanged —
+still direct calls into `tools.py`.
 
-
+Nothing behaved differently afterward. Ran both the matching and empty-search
+example queries before and after the rewire and got identical output both
+times — same selected item, same branch taken on the impossible query. That's
+the expected result: MCP changes how the call is made, not what comes back.
 
 ---
 
