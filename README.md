@@ -235,16 +235,60 @@ that produced it:
      the same length, your branch isn't working — and this is the fastest way
      anyone will ever find that out. -->
 
+**Failure modes triggered on purpose**
+
+1. *Empty search* — `python app.py ask 'designer ballgown size XXS under $5'`:
+   ```
+   No listings matched that description, size, and price. Try a plainer description, a higher max_price, or dropping the size.
+   ```
+   Already handled going into this unit — the branch rule from Unit 3 covers it.
+
+2. *Empty wardrobe* — `python app.py ask 'denim jacket under $50' --empty-wardrobe`: returned real general styling advice ("A light-wash cropped denim jacket is a versatile wardrobe staple that instantly adds effortless cool to any outfit...") instead of a crash or an empty string. Already handled by the `if not items:` branch in `tools.py::suggest_outfit` from Unit 3.
+
+3. *Model unavailable* — changed one character of `GEMINI_API_KEY` in `.env`, then ran a query the cache had never seen (`'silk slip dress in midi length under $40 for a totally novel phrasing xyz123'`):
+   ```
+   The model rejected your API key. Check GEMINI_API_KEY in your .env file, or create a fresh key at aistudio.google.com.
+   ```
+   This one **was not handled** before this unit — `run_agent` didn't catch `ModelUnavailable`, so it would have propagated up as an uncaught exception. Added a `try/except ModelUnavailable` around both the `suggest_outfit` and `create_fit_card` calls in `agent.py::run_agent`, each setting `session["error"]` and returning early, the same shape as the empty-search branch. Restored the real key afterward and confirmed `python test.py` passes again.
+
 **Happy path**
 
 ```
+$ python app.py ask 'vintage graphic tee under $30' --trace
+[1] parse_query
+      in:  dict with keys: query
+      out: dict with keys: description, size, max_price
+[2] search_listings (via MCP)
+      in:  dict with keys: description, size, max_price
+      out: 10 items: Y2K Baby Tee — Butterfly Print, Graphic Tee — 2003 Tour Bootleg Style, Vintage Band Tee — Faded Grey … +7 more
+      →    branch: match found, continuing
+[3] suggest_outfit
+      in:  dict with keys: item, wardrobe_items
+      out: Pair the Y2K butterfly baby tee with your baggy dark-wash straight-leg jeans to nail that classic high-low pro…
+[4] create_fit_card
+      in:  dict with keys: outfit, item
+      out: Obsessed with this Y2K butterfly baby tee I just scored on Depop for only $18! The print is giving total early…
 
+  Found:    Y2K Baby Tee — Butterfly Print — $18.0 on depop
+
+  Outfit:   Pair the Y2K butterfly baby tee with your baggy dark-wash straight-leg jeans to nail that classic high-low proportion play. Throw on your black cropped zip hoodie and chunky white sneakers to lean fully into the nostalgic 2000s aesthetic.
+
+  Fit card: Obsessed with this Y2K butterfly baby tee I just scored on Depop for only $18! The print is giving total early 2000s pop star off-duty, especially paired with baggy dark wash denim and chunky sneakers. Such a good addition to the rotation.
 ```
 
 **Empty search**
 
 ```
+$ python app.py ask 'designer ballgown size XXS under $5' --trace
+[1] parse_query
+      in:  dict with keys: query
+      out: dict with keys: description, size, max_price
+[2] search_listings (via MCP)
+      in:  dict with keys: description, size, max_price
+      out: [] (empty)
+      →    branch: empty, stopping before suggest_outfit
 
+  No listings matched that description, size, and price. Try a plainer description, a higher max_price, or dropping the size.
 ```
 
 **On the MCP move:** Moved `search_listings` behind MCP — it was the natural
