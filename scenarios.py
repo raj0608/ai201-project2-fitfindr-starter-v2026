@@ -35,18 +35,31 @@ SCENARIOS = [
         "wardrobe": "empty",
         "criterion": None,
     },
-    # TODO: add what your criteria 3, 4 and 5 need.
-    #
-    # Set "criterion" to the number in criteria.md that the scenario tests.
-    # "criterion": None means a diagnostic run — useful to have, but it isn't
-    # one of your five, and run_eval.py marks it as such in the table.
-    #
-    # For a state criterion, any normal query works — what you're checking is
-    # what ends up in the session, not what the user typed.
-    #
-    # For a fit-card criterion, you probably want the SAME query listed more
-    # than once, or several different items, depending on what your criterion
-    # actually says.
+    {
+        # Criterion 3 — state. A normal matching query; what's checked isn't
+        # the query, it's whether session["selected_item"]'s id matches the
+        # id suggest_outfit actually received. The generic session dump below
+        # doesn't capture that by itself — see the supplementary check script
+        # described under criterion 3 in the README's Run Log.
+        "name": "state: selected item reaches suggest_outfit",
+        "query": "90s track jacket in size M",
+        "wardrobe": "example",
+        "criterion": 3,
+    },
+    # Criterion 4 needs 5 DIFFERENT items, not the same query 5 times — each
+    # of these is run once (see the supplementary script in the README).
+    {"name": "fit card 1: graphic tee", "query": "vintage graphic tee under $30", "wardrobe": "example", "criterion": 4},
+    {"name": "fit card 2: track jacket", "query": "90s track jacket in size M", "wardrobe": "example", "criterion": 4},
+    {"name": "fit card 3: slip dress", "query": "silk slip dress in midi length under $40", "wardrobe": "example", "criterion": 4},
+    {"name": "fit card 4: sneakers", "query": "platform sneakers size 8", "wardrobe": "example", "criterion": 4},
+    {"name": "fit card 5: denim jacket", "query": "denim jacket under $50", "wardrobe": "example", "criterion": 4},
+    # Criterion 5 needs 5 DIFFERENT price ceilings, one per category so each
+    # actually returns results worth checking.
+    {"name": "price ceiling 1: tops $20", "query": "tops under $20", "wardrobe": "example", "criterion": 5},
+    {"name": "price ceiling 2: bottoms $30", "query": "bottoms under $30", "wardrobe": "example", "criterion": 5},
+    {"name": "price ceiling 3: outerwear $45", "query": "outerwear under $45", "wardrobe": "example", "criterion": 5},
+    {"name": "price ceiling 4: shoes $50", "query": "shoes under $50", "wardrobe": "example", "criterion": 5},
+    {"name": "price ceiling 5: accessories $15", "query": "accessories under $15", "wardrobe": "example", "criterion": 5},
 ]
 
 WARDROBES = ("example", "empty")

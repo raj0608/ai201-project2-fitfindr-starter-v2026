@@ -174,19 +174,92 @@ Manifested these vintage Levi's 501 jeans on Depop and still can't believe they 
      `python run_eval.py --label before` runs everything and writes the table
      into results/. Paste it here and fill in the verdicts. -->
 
+Produced by `python run_eval.py --label before` (writes
+`results/run_2026-10-07_1852_before.md`, 14 scenarios × 5 tries, cache off,
+130 model calls) plus two supplementary checks for criteria 3 and 5, which
+need more than the generic session dump captures — see each criterion's note.
+
 | Criterion | Target | Try 1 | Try 2 | Try 3 | Try 4 | Try 5 | Verdict |
 |---|---|---|---|---|---|---|---|
-| 1.  |  |  |  |  |  |  |  |
-| 2.  |  |  |  |  |  |  |  |
-| 3.  |  |  |  |  |  |  |  |
-| 4.  |  |  |  |  |  |  |  |
-| 5.  |  |  |  |  |  |  |  |
+| 1. Matching query completes all three tools | 4 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 2. Impossible query stops before tool 2 | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 3. selected_item id matches what suggest_outfit receives | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 4. Fit card: price mentioned (5/5) + no shared opening sentence (5 items) | 5 of 5 each | price PASS, opening PASS | price PASS, opening PASS | price PASS, opening PASS | price PASS, opening **FAIL** | price PASS, opening **FAIL** | MISSED (price 5/5, openings 4 distinct of 5) |
+| 5. Every search result respects max_price (5 ceilings) | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
 
-**Real output from one try**, pasted as text, naming the file and function
-that produced it:
+**Criterion 1 — real output**, from `agent.py::run_agent`, `scenarios.py` scenario "matching query completes", try 1 (`results/run_2026-10-07_1852_before.md` lines 47-81):
 
 ```
+Query: vintage graphic tee under $30
 
+- stopped early: no
+- selected_item: Y2K Baby Tee — Butterfly Print ($18.0, depop)
+- search_results: 10
+
+Fit card:
+Scored this gorgeous Y2K butterfly baby tee on Depop for just $18 and I'm literally obsessed. The pastel print gives off the cutest nostalgic energy, especially when I balance it out with baggy denim and chunky boots. Absolute win for the rotation!
+```
+
+**Criterion 2 — real output**, from `agent.py::run_agent`, scenario "impossible query stops early", try 1 (same file, lines 232-248):
+
+```
+Query: designer ballgown size XXS under $5
+
+- stopped early: yes — No listings matched that description, size, and price. Try a plainer description, a higher max_price, or dropping the size.
+- selected_item: (none)
+- search_results: 0
+
+Trace:
+[1] parse_query
+[2] search_listings (via MCP)
+      out: [] (empty)
+      →    branch: empty, stopping before suggest_outfit
+```
+
+**Criterion 3 — real output**, from a supplementary script that monkeypatches `tools.suggest_outfit` to record the id it receives, then compares it to `session["selected_item"]["id"]` — the generic run_eval session dump doesn't expose what a tool was actually called with, only what the session holds:
+
+```
+Try 1: query='vintage graphic tee under $30'
+        session['selected_item']['id'] = 'lst_002'
+        id suggest_outfit received      = 'lst_002'
+        PASS
+Try 2: query='90s track jacket in size M'           -> 'lst_004' == 'lst_004'  PASS
+Try 3: query='silk slip dress in midi length under $40' -> 'lst_013' == 'lst_013'  PASS
+Try 4: query='platform sneakers size 8'             -> 'lst_019' == 'lst_019'  PASS
+Try 5: query='denim jacket under $50'               -> 'lst_007' == 'lst_007'  PASS
+
+Overall: 5 of 5 PASS
+```
+
+**Criterion 4 — real output**, the five fit cards (try 1 of each of the five `fit card N` scenarios, `results/run_2026-10-07_1852_before.md` lines 702-1636):
+
+```
+1. graphic tee ($18):  "Found the holy grail on Depop today—an absolute mint-condition Y2K
+   butterfly baby tee for just $18! ..."
+2. track jacket ($45.00): "Score! Found this navy and white 90s track jacket on Poshmark
+   for just $45.00 and it's in mint condition. ..."
+3. slip dress ($30): "Obsessed is an understatement for this 90s silk slip dress I just
+   scored on Depop for only $30. ..."
+4. sneakers ($48): "My inner 90s model-off-duty just screamed. Snagged these platform
+   sneakers on Poshmark for $48 ..."
+5. denim jacket ($42): "Score! 🤩 Just snagged this cropped light-wash denim jacket on
+   Poshmark for only $42 and the condition is unreal. ..."
+```
+
+Every card mentions its item's exact price — 5 of 5. But cards 2 and 5 both open
+with the bare interjection **"Score!"** before anything else — an exact duplicate
+opening, confirmed by splitting each card on its first sentence-ending punctuation.
+
+**Criterion 5 — real output**, from `tools.py::search_listings` directly (price filtering doesn't touch the model, so no cache/trace involved):
+
+```
+Try 1: description='tops'        max_price=20.0 -> 7 results, prices=[18.0, 20.0, 15.0, 16.0, 18.0, 19.0, 17.0]  PASS
+Try 2: description='bottoms'     max_price=30.0 -> 6 results, prices=[27.0, 30.0, 24.0, 29.0, 14.0, 30.0]        PASS
+Try 3: description='outerwear'   max_price=45.0 -> 6 results, prices=[45.0, 42.0, 40.0, 38.0, 33.0, 27.0]        PASS
+Try 4: description='shoes'       max_price=50.0 -> 3 results, prices=[48.0, 44.0, 20.0]                         PASS
+Try 5: description='accessories' max_price=15.0 -> 2 results, prices=[12.0, 14.0]                               PASS
+
+Overall: 5 of 5 PASS
 ```
 
 ---
@@ -211,15 +284,28 @@ that produced it:
 
 | # | Criterion | Target | Verdict | How I decided |
 |---|---|---|---|---|
-| 1 |  |  |  |  |
-| 2 |  |  |  |  |
-| 3 |  |  |  |  |
-| 4 |  |  |  |  |
-| 5 |  |  |  |  |
+| 1 | Matching query completes all three tools | 4 of 5 | MET (5/5) | Counted PASS where `search_results` was non-empty and `fit_card` was produced; all 5 tries completed. |
+| 2 | Impossible query stops before tool 2 | 5 of 5 | MET (5/5) | Counted PASS where `session["error"]` was set and `fit_card` stayed `None`; all 5 tries stopped at the branch. |
+| 3 | selected_item id matches what suggest_outfit receives | 5 of 5 | MET (5/5) | Compared `session["selected_item"]["id"]` against the id a patched `suggest_outfit` actually received, across 5 different matching queries; identical every time. |
+| 4 | Fit card mentions exact price (5/5) and no two of 5 share an opening sentence | 5 of 5 each | **MISSED** (price 5/5, openings 4 distinct of 5) | Checked each of the 5 different-item fit cards for the item's exact price string — present in all 5. Split each card on its first sentence-ending punctuation and compared the 5 openings — 2 of 5 (track jacket and denim jacket) were both the bare word "Score!", an exact duplicate. |
+| 5 | Every search result respects max_price | 5 of 5 | MET (5/5) | Ran `search_listings` with 5 different price ceilings, one per category, and checked every returned price against its ceiling directly; no violations across 25 total listings checked. |
 
 **Diagnoses**
 
+Criterion 4 is the only miss, and it's one mechanism, not several: the
+`create_fit_card` prompt in `tools.py` (lines 224-233) asks for a caption that
+"sounds like a real person's post" and names the vibe, but never tells the
+model to avoid opening with a stock reaction word. At `TEMPERATURE = 0.9`
+that's enough to get real variation in most of the sentence, but the model
+still has a small, high-probability set of generic openers ("Score!", "Found",
+"Scored") it reaches for before it starts describing anything — and with only
+5 samples, two landing on the exact same one-word opener isn't surprising.
 
+This is the model's output, not the tool or the loop — `search_listings` and
+the branch in `run_agent` are unaffected (criteria 1, 2, 3, 5 all hold at
+5/5), and the price is being inserted into every card exactly as asked.
+The prompt simply doesn't rule out a generic opening, so it doesn't always
+avoid one. This is the miss I'm fixing in **The Improvement**, below.
 
 ---
 
