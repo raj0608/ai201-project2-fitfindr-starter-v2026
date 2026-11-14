@@ -575,3 +575,105 @@ Out of scope, on purpose:
   prompt/output-quality problem, not a failure-handling one.
 - **Not hosting it or making `serve.py` concurrent.** This runs on Path B
   (local with logs), and the one-request-at-a-time lock stays as it is.
+
+**Running It**
+
+Path B — local with logs. One command starts it (`python serve.py`), and
+[RUNNING.md](RUNNING.md) has the full run path at the top under "Capstone run
+path": Python 3.13.15, exact pins in `requirements-lock.txt`, no model files,
+one API key. I tested those instructions by cloning the repo into an empty
+folder, building a fresh venv from the lockfile, and starting the server:
+`test.py` passed 10/10, a `POST /ask` came back with a fit card, and
+`logs/runs.jsonl` was created from nothing with a record of it. I didn't host
+it — no local model, so the 512 MB tier would fit, but the signup wants a card.
+
+**Instrumentation**
+
+Every agent run writes one JSON line to `logs/runs.jsonl`. The writer is
+`runlog.py::write`, called from the end of `agent.py::run_agent` — so the CLI,
+`serve.py` and `run_eval.py` all log the same way, and a run that fails is
+logged on its way out exactly like one that worked. `serve.py::ask` writes its
+own record for the one case that never reaches `run_agent`: a request it
+rejects with a 400.
+
+What each record holds (full list at the top of `runlog.py`): `ts`, `run_id`,
+`query`, `parsed`, `wardrobe_items`, `n_results`, `selected_id`, `outcome`
+(`ok`, `ok_fallback`, `no_results`, `error`, `rejected`), `error_type`,
+`error_stage`, `error` (the message the user saw), `fallbacks`, `fit_card`,
+`duration_ms`, `stage_ms` (per step), `wait_ms` (how much of the duration was
+the rate limiter sleeping), `model_calls`, `cache_hits`, `prompt_tokens`,
+`output_tokens`, `model`, `timeout_s`, and `fault`.
+
+The two fields I'd have skipped without thinking about it are `wait_ms` and
+`fault`. `wait_ms` matters because this client paces itself to 15 requests a
+minute — without it, a run that sat 47 seconds in the limiter looks exactly
+like a slow model. `fault` matters because half my bad-path records are
+injected on purpose, and a log that doesn't say so would read like an outage.
+
+The full committed record, all 21 entries from one session on 2026-11-14.
+The first 10 are the cost runs (`python measure_cost.py`). The rest are one of
+each bad path triggered on purpose, one empty-wardrobe run, and four malformed
+requests to `serve.py` (`{}`, `{"query": 123}`, `[1,2]`, `not json`):
+
+```jsonl
+{"ts": "2026-11-14T10:03:17.067+00:00", "run_id": "1f0c53df", "query": "vintage graphic tee under $30", "parsed": {"description": "vintage graphic tee", "size": null, "max_price": 30.0}, "wardrobe_items": 10, "n_results": 10, "selected_id": "lst_002", "outcome": "ok", "error_type": null, "error_stage": null, "error": null, "fallbacks": [], "fit_card": "That dreamy butterfly print totally screams peak 2-4-7 Y2K energy. Snagged this baby tee off Depop for just $18 and the fit is honestly unreal. Pair it with low-rise baggy denim and chunky sneakers for the ultimate off-duty pop star vibe.", "duration_ms": 2272, "stage_ms": {"search_listings": 391, "suggest_outfit": 1088, "create_fit_card": 793}, "wait_ms": 0, "model_calls": 2, "cache_hits": 0, "prompt_tokens": 410, "output_tokens": 121, "model": "gemini-3.5-flash-lite", "timeout_s": 20.0, "fault": null}
+{"ts": "2026-11-14T10:03:18.665+00:00", "run_id": "20266e6c", "query": "90s track jacket in size M", "parsed": {"description": "90s track jacket", "size": "M", "max_price": null}, "wardrobe_items": 10, "n_results": 4, "selected_id": "lst_004", "outcome": "ok", "error_type": null, "error_stage": null, "error": null, "fallbacks": [], "fit_card": "Crisp navy with sporty white stripes, this 90s track jacket just came in from Poshmark and it is *so* off-duty model-off-duty. Snagged it for $45 and the condition is literally pristine. Throwing it over baggy denim and chunky sneakers ASAP.", "duration_ms": 1597, "stage_ms": {"search_listings": 233, "suggest_outfit": 657, "create_fit_card": 706}, "wait_ms": 0, "model_calls": 2, "cache_hits": 0, "prompt_tokens": 432, "output_tokens": 142, "model": "gemini-3.5-flash-lite", "timeout_s": 20.0, "fault": null}
+{"ts": "2026-11-14T10:03:20.691+00:00", "run_id": "728cad54", "query": "silk slip dress in midi length under $40", "parsed": {"description": "silk slip dress midi length", "size": null, "max_price": 40.0}, "wardrobe_items": 10, "n_results": 5, "selected_id": "lst_013", "outcome": "ok", "error_type": null, "error_stage": null, "error": null, "fallbacks": [], "fit_card": "That dreamy 90s floral silk slip dress finally arrived from Depop and it was totally worth the $30. Layering it over a white ribbed tank with chunky sneakers is my new go-to daytime uniform, but it's gonna look so good with combat boots and a denim jacket when it cools down. So obsessed with this grungy-yet-romantic vibe!", "duration_ms": 2025, "stage_ms": {"search_listings": 226, "suggest_outfit": 1060, "create_fit_card": 738}, "wait_ms": 0, "model_calls": 2, "cache_hits": 0, "prompt_tokens": 419, "output_tokens": 136, "model": "gemini-3.5-flash-lite", "timeout_s": 20.0, "fault": null}
+{"ts": "2026-11-14T10:03:22.364+00:00", "run_id": "3eb78637", "query": "platform sneakers size 8", "parsed": {"description": "platform sneakers", "size": "8", "max_price": null}, "wardrobe_items": 10, "n_results": 1, "selected_id": "lst_019", "outcome": "ok", "error_type": null, "error_stage": null, "error": null, "fallbacks": [], "fit_card": "Chunky white platforms are officially my new daily uniform, especially since I managed to snag these gems on Poshmark for just $48. They're in such good condition and give me that exact 90s model-off-duty energy when I wear them with baggy denim. Can't wait to live in these all season long!", "duration_ms": 1671, "stage_ms": {"search_listings": 241, "suggest_outfit": 599, "create_fit_card": 831}, "wait_ms": 0, "model_calls": 2, "cache_hits": 0, "prompt_tokens": 402, "output_tokens": 130, "model": "gemini-3.5-flash-lite", "timeout_s": 20.0, "fault": null}
+{"ts": "2026-11-14T10:03:23.959+00:00", "run_id": "22020fdd", "query": "denim jacket under $50", "parsed": {"description": "denim jacket", "size": null, "max_price": 50.0}, "wardrobe_items": 10, "n_results": 7, "selected_id": "lst_007", "outcome": "ok", "error_type": null, "error_stage": null, "error": null, "fallbacks": [], "fit_card": "That perfect 90s light wash denim is finally mine. I scored this cropped beauty on Poshmark for just $42, and the quality is unreal. Can't wait to throw it on over a white tank and baggier jeans for the ultimate double-denim fit.", "duration_ms": 1593, "stage_ms": {"search_listings": 236, "suggest_outfit": 659, "create_fit_card": 698}, "wait_ms": 0, "model_calls": 2, "cache_hits": 0, "prompt_tokens": 418, "output_tokens": 132, "model": "gemini-3.5-flash-lite", "timeout_s": 20.0, "fault": null}
+{"ts": "2026-11-14T10:03:25.434+00:00", "run_id": "afd9f3a4", "query": "vintage graphic tee under $30", "parsed": {"description": "vintage graphic tee", "size": null, "max_price": 30.0}, "wardrobe_items": 10, "n_results": 10, "selected_id": "lst_002", "outcome": "ok", "error_type": null, "error_stage": null, "error": null, "fallbacks": [], "fit_card": "That buttery-soft fabric and nostalgic butterfly print are giving major 2000s pop princess energy. I manifested this exact Y2K baby tee for months before finally snagging it on Depop for just $18. Honestly obsessed with how it balances out with some oversized denim.", "duration_ms": 1474, "stage_ms": {"search_listings": 235, "suggest_outfit": 632, "create_fit_card": 606}, "wait_ms": 0, "model_calls": 2, "cache_hits": 0, "prompt_tokens": 403, "output_tokens": 113, "model": "gemini-3.5-flash-lite", "timeout_s": 20.0, "fault": null}
+{"ts": "2026-11-14T10:03:27.000+00:00", "run_id": "9ed396e7", "query": "90s track jacket in size M", "parsed": {"description": "90s track jacket", "size": "M", "max_price": null}, "wardrobe_items": 10, "n_results": 4, "selected_id": "lst_004", "outcome": "ok", "error_type": null, "error_stage": null, "error": null, "fallbacks": [], "fit_card": "That deep navy and white side-stripe on this 90s track jacket is just too good. Snagged it on Poshmark for $45 and it’s basically in brand-new condition. Honestly living for this sporty streetwear energy—gonna throw it on over a ribbed tank and baggy denim ASAP.", "duration_ms": 1565, "stage_ms": {"search_listings": 227, "suggest_outfit": 660, "create_fit_card": 678}, "wait_ms": 0, "model_calls": 2, "cache_hits": 0, "prompt_tokens": 428, "output_tokens": 141, "model": "gemini-3.5-flash-lite", "timeout_s": 20.0, "fault": null}
+{"ts": "2026-11-14T10:04:16.338+00:00", "run_id": "4b593a1d", "query": "silk slip dress in midi length under $40", "parsed": {"description": "silk slip dress midi length", "size": null, "max_price": 40.0}, "wardrobe_items": 10, "n_results": 5, "selected_id": "lst_013", "outcome": "ok", "error_type": null, "error_stage": null, "error": null, "fallbacks": [], "fit_card": "Ditsy florals and liquid silk scream peak 90s, and I couldn't resist adding this midi slip dress to my rotation. Snagged it on Depop for just $30, and it's in crazy good condition. I'm already planning to toughen it up with a white ribbed tank underneath and my chunky combat boots.", "duration_ms": 49336, "stage_ms": {"search_listings": 233, "suggest_outfit": 864, "create_fit_card": 48239}, "wait_ms": 47479, "model_calls": 2, "cache_hits": 0, "prompt_tokens": 443, "output_tokens": 157, "model": "gemini-3.5-flash-lite", "timeout_s": 20.0, "fault": null}
+{"ts": "2026-11-14T10:04:18.026+00:00", "run_id": "dbe75235", "query": "platform sneakers size 8", "parsed": {"description": "platform sneakers", "size": "8", "max_price": null}, "wardrobe_items": 10, "n_results": 1, "selected_id": "lst_019", "outcome": "ok", "error_type": null, "error_stage": null, "error": null, "fallbacks": [], "fit_card": "Crisp white chunky soles are officially doing all the heavy lifting this spring. Snagged these platform sneakers on Poshmark for just $48, and they’re honestly in such good shape. Paired with wide-leg khakis and a ribbed tank, they give off the best effortless 90s off-duty vibe.", "duration_ms": 1686, "stage_ms": {"search_listings": 228, "suggest_outfit": 684, "create_fit_card": 774}, "wait_ms": 151, "model_calls": 2, "cache_hits": 0, "prompt_tokens": 408, "output_tokens": 134, "model": "gemini-3.5-flash-lite", "timeout_s": 20.0, "fault": null}
+{"ts": "2026-11-14T10:04:19.748+00:00", "run_id": "83f919d0", "query": "denim jacket under $50", "parsed": {"description": "denim jacket", "size": null, "max_price": 50.0}, "wardrobe_items": 10, "n_results": 7, "selected_id": "lst_007", "outcome": "ok", "error_type": null, "error_stage": null, "error": null, "fallbacks": [], "fit_card": "That perfect 90s light wash denim is officially mine for just $42.00 after I hunted it down on Poshmark. I'm already planning to throw it over a ribbed white tank and wide-leg trousers for peak off-duty model energy. Trust me, you need a cropped jacket like this in your rotation ASAP.", "duration_ms": 1722, "stage_ms": {"search_listings": 236, "suggest_outfit": 698, "create_fit_card": 788}, "wait_ms": 0, "model_calls": 2, "cache_hits": 0, "prompt_tokens": 431, "output_tokens": 156, "model": "gemini-3.5-flash-lite", "timeout_s": 20.0, "fault": null}
+{"ts": "2026-11-14T10:04:29.779+00:00", "run_id": "695bfad9", "query": "vintage graphic tee under $30", "parsed": {"description": "vintage graphic tee", "size": null, "max_price": 30.0}, "wardrobe_items": 10, "n_results": 10, "selected_id": "lst_002", "outcome": "error", "error_type": "ModelTimeout", "error_stage": "suggest_outfit", "error": "The stylist model didn't answer within 0.01s while running suggest_outfit, so FitFindr stopped instead of leaving you waiting. Try again in a moment.", "fallbacks": [], "fit_card": null, "duration_ms": 704, "stage_ms": {"search_listings": 334, "suggest_outfit": 370}, "wait_ms": 0, "model_calls": 1, "cache_hits": 0, "prompt_tokens": 0, "output_tokens": 0, "model": "gemini-3.5-flash-lite", "timeout_s": 0.01, "fault": null}
+{"ts": "2026-11-14T10:04:31.971+00:00", "run_id": "eec7817f", "query": "90s track jacket in size M", "parsed": {"description": "90s track jacket", "size": "M", "max_price": null}, "wardrobe_items": 10, "n_results": 4, "selected_id": "lst_004", "outcome": "ok_fallback", "error_type": null, "error_stage": null, "error": null, "fallbacks": ["suggest_outfit", "create_fit_card"], "fit_card": "90s Track Jacket — Navy/White Stripe, excellent condition — $45.00 on Poshmark. Thrifted, and ready to wear.", "duration_ms": 2076, "stage_ms": {"search_listings": 342, "suggest_outfit": 953, "create_fit_card": 781}, "wait_ms": 0, "model_calls": 2, "cache_hits": 0, "prompt_tokens": 387, "output_tokens": 139, "model": "gemini-3.5-flash-lite", "timeout_s": 20.0, "fault": "empty"}
+{"ts": "2026-11-14T10:04:35.688+00:00", "run_id": "1ace03f4", "query": "vintage graphic tee under $30", "parsed": {"description": "vintage graphic tee", "size": null, "max_price": 30.0}, "wardrobe_items": 10, "n_results": 10, "selected_id": "lst_002", "outcome": "error", "error_type": "RateLimited", "error_stage": "suggest_outfit", "error": "The model is rate-limiting this API key and kept refusing after 2 attempts during suggest_outfit. Wait a minute and ask again — your key is fine.", "fallbacks": [], "fit_card": null, "duration_ms": 3571, "stage_ms": {"search_listings": 335, "suggest_outfit": 3236}, "wait_ms": 3000, "model_calls": 2, "cache_hits": 0, "prompt_tokens": 0, "output_tokens": 0, "model": "gemini-3.5-flash-lite", "timeout_s": 20.0, "fault": "ratelimit"}
+{"ts": "2026-11-14T10:04:36.523+00:00", "run_id": "eed68c9f", "query": "vintage graphic tee under $30", "parsed": {"description": "vintage graphic tee", "size": null, "max_price": 30.0}, "wardrobe_items": 10, "n_results": 10, "selected_id": "lst_002", "outcome": "error", "error_type": "ModelUnavailable", "error_stage": "suggest_outfit", "error": "The model name 'no-such-model' did not resolve. If you changed AI201_MODEL in your .env, put it back. Otherwise post in the help channel — this is not something you caused.", "fallbacks": [], "fit_card": null, "duration_ms": 684, "stage_ms": {"search_listings": 338, "suggest_outfit": 346}, "wait_ms": 0, "model_calls": 1, "cache_hits": 0, "prompt_tokens": 0, "output_tokens": 0, "model": "no-such-model", "timeout_s": 20.0, "fault": null}
+{"ts": "2026-11-14T10:04:36.982+00:00", "run_id": "009719fe", "query": "vintage graphic tee under $30", "parsed": {"description": "vintage graphic tee", "size": null, "max_price": 30.0}, "wardrobe_items": 10, "n_results": 10, "selected_id": "lst_002", "outcome": "error", "error_type": "QuotaGuard", "error_stage": "suggest_outfit", "error": "This session has used its request budget (0 model calls, SESSION_REQUEST_BUDGET in config.py), so FitFindr stopped before suggest_outfit. Restart to reset it.", "fallbacks": [], "fit_card": null, "duration_ms": 338, "stage_ms": {"search_listings": 338, "suggest_outfit": 0}, "wait_ms": 0, "model_calls": 0, "cache_hits": 0, "prompt_tokens": 0, "output_tokens": 0, "model": "gemini-3.5-flash-lite", "timeout_s": 20.0, "fault": null}
+{"ts": "2026-11-14T10:04:37.391+00:00", "run_id": "630130d0", "query": "designer ballgown size XXS under $5", "parsed": {"description": "designer ballgown", "size": "XXS", "max_price": 5.0}, "wardrobe_items": 10, "n_results": 0, "selected_id": null, "outcome": "no_results", "error_type": null, "error_stage": null, "error": "No listings matched that description, size, and price. Try a plainer description, a higher max_price, or dropping the size.", "fallbacks": [], "fit_card": null, "duration_ms": 340, "stage_ms": {"search_listings": 340}, "wait_ms": 0, "model_calls": 0, "cache_hits": 0, "prompt_tokens": 0, "output_tokens": 0, "model": "gemini-3.5-flash-lite", "timeout_s": 20.0, "fault": null}
+{"ts": "2026-11-14T10:04:39.862+00:00", "run_id": "1fe699a7", "query": "denim jacket under $50", "parsed": {"description": "denim jacket", "size": null, "max_price": 50.0}, "wardrobe_items": 0, "n_results": 7, "selected_id": "lst_007", "outcome": "ok", "error_type": null, "error_stage": null, "error": null, "fallbacks": [], "fit_card": "That perfect pale blue wash is notoriously hard to find, but Poshmark came through with this cropped denim jacket. At just $42, it’s already becoming my go-to layer for toughening up sweet floral midi dresses. Seriously obsessed with this effortless high-low mix!", "duration_ms": 2402, "stage_ms": {"search_listings": 344, "suggest_outfit": 973, "create_fit_card": 1085}, "wait_ms": 0, "model_calls": 2, "cache_hits": 0, "prompt_tokens": 281, "output_tokens": 122, "model": "gemini-3.5-flash-lite", "timeout_s": 20.0, "fault": null}
+{"ts": "2026-11-14T10:04:40.510+00:00", "run_id": "58cb8fc4", "query": null, "outcome": "rejected", "error_type": "BadRequest", "error_stage": "serve", "error": "Send JSON with a 'query' field, e.g. {\"query\": \"vintage graphic tee under $30\"}", "http_status": 400, "body_bytes": 2, "duration_ms": 0, "model_calls": 0}
+{"ts": "2026-11-14T10:04:40.517+00:00", "run_id": "83e4d733", "query": null, "outcome": "rejected", "error_type": "BadRequest", "error_stage": "serve", "error": "Send JSON with a 'query' field, e.g. {\"query\": \"vintage graphic tee under $30\"}", "http_status": 400, "body_bytes": 14, "duration_ms": 0, "model_calls": 0}
+{"ts": "2026-11-14T10:04:40.523+00:00", "run_id": "5cef9dae", "query": null, "outcome": "rejected", "error_type": "BadRequest", "error_stage": "serve", "error": "Send JSON with a 'query' field, e.g. {\"query\": \"vintage graphic tee under $30\"}", "http_status": 400, "body_bytes": 5, "duration_ms": 0, "model_calls": 0}
+{"ts": "2026-11-14T10:04:40.529+00:00", "run_id": "13af22b0", "query": null, "outcome": "rejected", "error_type": "BadRequest", "error_stage": "serve", "error": "Send JSON with a 'query' field, e.g. {\"query\": \"vintage graphic tee under $30\"}", "http_status": 400, "body_bytes": 8, "duration_ms": 0, "model_calls": 0}
+```
+
+**What It Costs**
+
+Measured with `python measure_cost.py`: 10 full agent runs back to back,
+cache off, across the 5 matching queries twice each, then averaged from the
+run-log records those 10 runs wrote. The token counts are the service's own
+`usage_metadata` numbers, summed per run in `generate.py::_record_tokens` (I
+checked a raw response: this model reports no thinking tokens, so prompt +
+output is the whole bill).
+
+| Per run (average of 10) | |
+|---|---|
+| Model calls | 2.00 |
+| Prompt tokens | 419.4 |
+| Output tokens | 136.2 |
+| Wall time | 6.49 s, of which 4.76 s was the rate limiter sleeping |
+| Working time (wall minus waiting) | 1.73 s |
+| **Dollars, paid tier** | **$0.000466** |
+
+The dollar figure is the measured tokens times Google's published rate for
+`gemini-3.5-flash-lite` (standard tier, $0.30 per 1M input and $2.50 per 1M
+output, from ai.google.dev/gemini-api/docs/pricing, checked 2026-11-14):
+
+    419.4 x $0.30 / 1,000,000  = $0.000126
+    136.2 x $2.50 / 1,000,000  = $0.000341
+                                 ---------
+                       per run   $0.000466
+
+On the free tier I actually run on, it costs $0.
+
+A hundred people a day, one query each:
+
+    100 runs x $0.000466 = $0.0466 a day,  x 30 = $1.40 a month
+
+Money isn't the constraint at that scale — requests are. 100 runs is 200 model
+calls, and the free tier allows 15 a minute, so a busy minute would be capped
+at about 7 users and everyone after that waits. That's already visible in the
+measurement: one of the 10 runs waited 47 seconds for a slot, which is why the
+average wall time is 6.49 s when the work takes 1.73 s.
