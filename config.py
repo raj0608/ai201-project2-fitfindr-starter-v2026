@@ -83,10 +83,32 @@ MODEL = os.getenv("AI201_MODEL", "gemini-3.5-flash-lite")
 # failed run. Two model calls per agent run means about seven runs a minute.
 
 REQUESTS_PER_MINUTE = 15
-SESSION_REQUEST_BUDGET = 300
-MAX_RETRIES = 5
+SESSION_REQUEST_BUDGET = int(os.getenv("AI201_SESSION_BUDGET", "300"))
+MAX_RETRIES = int(os.getenv("AI201_MAX_RETRIES", "5"))
 
 CACHE_DIR = ROOT / ".cache"
+
+
+# ─── Capstone: failure handling and run log ──────────────────────────────────
+#
+# How long one Gemini request may take before it's abandoned. Before the
+# capstone there was no limit at all, so a stalled request hung the run
+# forever. A normal call here takes 1-3s; 20s is generous enough never to cut
+# off a healthy-but-slow answer and short enough that a user isn't left
+# staring at nothing. Override with AI201_MODEL_TIMEOUT (seconds).
+MODEL_TIMEOUT_S = float(os.getenv("AI201_MODEL_TIMEOUT", "20"))
+
+# Fault injection, for triggering bad paths on purpose. Off unless set.
+#   empty      the model "answers" with an empty string
+#   ratelimit  every call comes back as a 429, so the retry loop runs dry
+# The other failures are triggered for real, through settings above:
+#   timeout      AI201_MODEL_TIMEOUT=0.01
+#   unavailable  AI201_MODEL=no-such-model
+#   quota        AI201_SESSION_BUDGET=0
+FAULT = os.getenv("AI201_FAULT", "").strip().lower()
+
+# One JSON line per agent run, appended. See runlog.py.
+RUN_LOG = Path(os.getenv("AI201_RUN_LOG", str(ROOT / "logs" / "runs.jsonl")))
 
 
 # ─── Paths ───────────────────────────────────────────────────────────────────

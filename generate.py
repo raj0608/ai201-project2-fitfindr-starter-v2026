@@ -43,6 +43,7 @@ _prompt_tokens = 0
 _output_tokens = 0
 _client = None
 _budget_warned = False
+_wait_seconds = 0.0  # capstone: time spent sleeping in the limiter or backoff
 
 
 class QuotaGuard(Exception):
@@ -57,6 +58,28 @@ class ModelUnavailable(Exception):
     This exists so your agent can catch one specific thing and say something
     useful, instead of showing a user a stack trace. Unit 4 Milestone 2 has you
     trigger it deliberately by changing one character of your key.
+    """
+
+
+class ModelTimeout(ModelUnavailable):
+    """Capstone: the request took longer than config.MODEL_TIMEOUT_S."""
+
+
+class EmptyResponse(Exception):
+    """
+    Capstone: the model answered, but with no text. Before the capstone this
+    came back as "" and create_fit_card handed it straight to the user as the
+    fit card. Raising instead lets the agent fall back on purpose.
+    """
+
+
+class RateLimited(RuntimeError):
+    """
+    Capstone: still rate limited after config.MAX_RETRIES attempts.
+
+    A RuntimeError subclass so anything that already caught RuntimeError still
+    does — before the capstone this was a bare RuntimeError that escaped
+    run_agent.
     """
 
 
@@ -118,8 +141,20 @@ def _wait_for_slot() -> None:
                 file=sys.stderr,
                 flush=True,
             )
-        time.sleep(sleep_for)
+        _sleep(sleep_for)
         _call_times[:] = [t for t in _call_times if time.monotonic() - t < 60.0]
+
+
+def _sleep(seconds: float) -> None:
+    """Sleep, and count it — a paced wait is time, but it isn't model time."""
+    global _wait_seconds
+    _wait_seconds += seconds
+    time.sleep(seconds)
+
+
+def wait_seconds() -> float:
+    """Capstone: total seconds this process has spent waiting on pacing/backoff."""
+    return _wait_seconds
 
 
 def _check_budget() -> None:
@@ -253,8 +288,33 @@ def _get_client():
                 "Copy .env.example to .env and paste your key in, then try "
                 "again. `python test.py` will confirm it's working."
             )
-        _client = genai.Client(api_key=key)
+        from google.genai import types
+
+        # Capstone: before this, no timeout was set and a stalled request
+        # waited forever. The SDK takes milliseconds.
+        _client = genai.Client(
+            api_key=key,
+            http_options=types.HttpOptions(timeout=max(1, int(config.MODEL_TIMEOUT_S * 1000))),
+        )
     return _client
+
+
+def _is_timeout(exc: Exception) -> bool:
+    try:
+        import httpx
+        if isinstance(exc, httpx.TimeoutException):
+            return True
+    except ImportError:  # pragma: no cover
+        pass
+    message = str(exc).lower()
+    return "timed out" in message or "timeout" in message or "deadline" in message
+
+
+class _InjectedRateLimit(Exception):
+    """AI201_FAULT=ratelimit: looks like the service's own 429."""
+
+    def __init__(self):
+        super().__init__("429 RESOURCE_EXHAUSTED (injected by AI201_FAULT=ratelimit)")
 
 
 def generate(
@@ -312,16 +372,35 @@ def generate(
                 "config": call_config,
             }
 
+            if config.FAULT == "ratelimit":
+                raise _InjectedRateLimit()
+
             response = client.models.generate_content(**kwargs)
             _record_tokens(response)
             text = (response.text or "").strip()
+            if config.FAULT == "empty":
+                text = ""
+
+            # Capstone: an empty answer is a failure, not a fit card. Don't
+            # cache it either, or the next identical prompt gets "" for free.
+            if not text:
+                raise EmptyResponse(
+                    "The model answered with no text."
+                )
 
             if use_cache:
                 _cache_write(key, text)
             return text
 
+        except EmptyResponse:
+            raise
         except Exception as exc:  # noqa: BLE001 — surfaced below
             last_error = exc
+            if _is_timeout(exc):
+                raise ModelTimeout(
+                    f"The model didn't answer within {config.MODEL_TIMEOUT_S:g}s "
+                    f"(MODEL_TIMEOUT_S in config.py)."
+                ) from exc
             message = str(exc).lower()
             rate_limited = (
                 "429" in message
@@ -338,9 +417,9 @@ def generate(
                 file=sys.stderr,
                 flush=True,
             )
-            time.sleep(backoff)
+            _sleep(backoff)
 
-    raise RuntimeError(
+    raise RateLimited(
         f"Still rate limited after {config.MAX_RETRIES} attempts. Wait a "
         f"minute and try again — your key is fine.\nLast error: {last_error}"
     )
