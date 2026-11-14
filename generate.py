@@ -225,10 +225,15 @@ def _record_tokens(response) -> None:
             return
         prompt = getattr(meta, "prompt_token_count", None)
         output = getattr(meta, "candidates_token_count", None)
+        # Capstone: thinking tokens are billed at the output rate. This model
+        # reports none today, but if it ever does they belong in the cost.
+        thoughts = getattr(meta, "thoughts_token_count", None)
         if isinstance(prompt, int):
             _prompt_tokens += prompt
         if isinstance(output, int):
             _output_tokens += output
+        if isinstance(thoughts, int):
+            _output_tokens += thoughts
     except Exception:  # noqa: BLE001 — counting must never break a working call
         pass
 

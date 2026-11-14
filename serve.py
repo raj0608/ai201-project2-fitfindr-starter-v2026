@@ -36,6 +36,7 @@ what belongs in one — and the timing field is the one everybody skips.
 import os
 import sys
 import threading
+import time
 
 # config first, and before anything that talks to the model: it loads your .env
 # and fixes the Windows console encoding for every module that imports it.
@@ -43,6 +44,7 @@ import config  # noqa: F401
 
 from flask import Flask, jsonify, request
 
+import runlog
 from agent import run_agent
 from utils.data_loader import get_example_wardrobe
 
@@ -107,12 +109,31 @@ def ask():
                                                 example wardrobe the CLI uses.
     Out:  the session dict from run_agent(), as JSON.
     """
-    payload = request.get_json(silent=True) or {}
-    query = (payload.get("query") or "").strip()
+    started = time.perf_counter()
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        payload = {}
+    raw_query = payload.get("query")
+    query = raw_query.strip() if isinstance(raw_query, str) else ""
     if not query:
         # 400 rather than a stack trace: the caller can act on this one.
-        return jsonify({"error": "Send JSON with a 'query' field, e.g. "
-                                 '{"query": "vintage graphic tee under $30"}'}), 400
+        message = ("Send JSON with a 'query' field, e.g. "
+                   '{"query": "vintage graphic tee under $30"}')
+        # Capstone: a rejected request leaves a record too. It never reached
+        # run_agent, so serve.py writes this one itself.
+        runlog.write({
+            "run_id": runlog.new_run_id(),
+            "query": raw_query if isinstance(raw_query, str) else None,
+            "outcome": "rejected",
+            "error_type": "BadRequest",
+            "error_stage": "serve",
+            "error": message,
+            "http_status": 400,
+            "body_bytes": request.content_length or 0,
+            "duration_ms": round((time.perf_counter() - started) * 1000),
+            "model_calls": 0,
+        })
+        return jsonify({"error": message}), 400
 
     wardrobe = payload.get("wardrobe")
     if not isinstance(wardrobe, dict):
@@ -147,6 +168,18 @@ def ask():
     # Outside the lock: building a response is not work the next caller should
     # be waiting on.
     if failure is not None:
+        # run_agent logs everything it handles; reaching here means it raised
+        # anyway, so this is the only record the run will get.
+        runlog.write({
+            "run_id": runlog.new_run_id(),
+            "query": query,
+            "outcome": "error",
+            "error_type": "ServerError",
+            "error_stage": "serve",
+            "error": failure,
+            "http_status": 500,
+            "duration_ms": round((time.perf_counter() - started) * 1000),
+        })
         return jsonify({"error": failure}), 500
 
     return jsonify(session)

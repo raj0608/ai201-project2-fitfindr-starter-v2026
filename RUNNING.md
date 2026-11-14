@@ -4,6 +4,82 @@ Everything about how the starter works and how to use it.
 
 ---
 
+## Capstone run path — Path B, local with logs
+
+FitFindr runs on my machine, started by one command, and every run appends a
+record to `logs/runs.jsonl`. It isn't hosted. It would fit the free host's
+512 MB (no local model, just API calls), but signing up needs a card and Path B
+is worth the same.
+
+**Environment**
+
+| Thing | What it needs |
+|---|---|
+| Python | 3.11–3.13 (tested on **3.13.15**). Not 3.14 |
+| Dependencies | `requirements-lock.txt`, exact pins from `pip freeze` (50 packages). The installed `.venv` is about 74 MB |
+| Model files | None. The model is `gemini-3.5-flash-lite`, called over the API |
+| Data | `data/listings.json` (40 listings) and `data/wardrobe_schema.json`, both in the repo, 24 KB |
+| Secrets | `GEMINI_API_KEY` in `.env` (free Google AI Studio key) |
+| Network | Outbound HTTPS to the Gemini API |
+
+**Setup, once, from a clean checkout (macOS / Linux)**
+
+```bash
+git clone https://github.com/raj0608/ai201-project2-fitfindr-starter-v2026.git
+cd ai201-project2-fitfindr-starter-v2026
+python3.13 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-lock.txt
+cp .env.example .env            # then paste your key in as GEMINI_API_KEY=...
+python test.py                  # 10 passed
+```
+
+**The start command**
+
+```bash
+python serve.py
+```
+
+That's the system: an HTTP server on `http://localhost:5000` (or `$PORT`) that
+runs the agent once per `POST /ask` and logs every request. Ask it something
+from a second terminal:
+
+```bash
+curl -s -X POST http://localhost:5000/ask \
+  -H 'Content-Type: application/json' \
+  -d '{"query": "vintage graphic tee under $30"}'
+```
+
+The same agent, without a server: `python app.py ask 'vintage graphic tee under $30'`.
+Both write to the same log.
+
+**Where the record goes**
+
+`logs/runs.jsonl`, one JSON object per run, appended — every field is listed
+at the top of `runlog.py`. Set `AI201_RUN_LOG=/some/other/file.jsonl` to send
+test runs somewhere else. Read the last few with:
+
+```bash
+tail -n 5 logs/runs.jsonl
+```
+
+**Measuring cost:** `python measure_cost.py` (10 full runs, cache off).
+
+**Triggering the bad paths on purpose** (each is one environment variable):
+
+| Failure | How |
+|---|---|
+| Model times out | `AI201_MODEL_TIMEOUT=0.01` |
+| Model answers with empty text | `AI201_FAULT=empty` |
+| Rate limited past every retry | `AI201_FAULT=ratelimit` (add `AI201_MAX_RETRIES=2` to keep it short) |
+| Model can't be reached | `AI201_MODEL=no-such-model` |
+| Session request budget used up | `AI201_SESSION_BUDGET=0` |
+| Malformed request | `POST /ask` with `{}` or `{"query": 123}` |
+
+e.g. `AI201_FAULT=empty python serve.py`.
+
+---
+
 ## Before your first class
 
 Setup happens **before class**. The [environment setup page](../pages/ide_setup)
