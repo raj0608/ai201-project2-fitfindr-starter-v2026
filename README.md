@@ -539,3 +539,39 @@ measured properly.
 ---
 
 📖 **How to run this project: [RUNNING.md](RUNNING.md)**
+
+---
+
+## Capstone
+
+**What This Extends**
+
+FitFindr, the thrift-shopping agent from units 3–4. It parses a query,
+searches listings over MCP, then makes two Gemini calls (`suggest_outfit`,
+`create_fit_card`) to write an outfit idea and a fit card. What's new this
+unit is a hardened model-call stage, structured per-run logging, and a
+documented local run path.
+
+**The Shape**
+
+B — harden against failure. FitFindr works when Gemini answers, and only
+then. I checked before scoping, with the model call stubbed out: an empty
+model response produces an empty fit card (`''`), and both `QuotaGuard` and
+the "still rate limited after 5 attempts" `RuntimeError` escape
+`agent.py::run_agent` as uncaught exceptions — so the CLI prints a crash and
+`serve.py` returns a 500. There is also no timeout on the Gemini call, so a
+stalled request hangs the run forever. The extension is one hardening layer
+on the model-call stage (`generate.py` and the two tools behind it): a request
+timeout, an empty-response guard, and handling in `run_agent` so that every
+model-stage failure ends the run with a readable `session["error"]` and a
+log record instead of a crash, a hang, or a blank fit card. A small
+fault-injection switch lets me trigger each failure on purpose.
+
+Out of scope, on purpose:
+
+- **Not touching search or MCP.** `search_listings` has no model in it and
+  `MCPError` is already handled; the bad path I'm hardening is the model one.
+- **Not editing the prompts.** The "thirty bucks" price miss from unit 4 is a
+  prompt/output-quality problem, not a failure-handling one.
+- **Not hosting it or making `serve.py` concurrent.** This runs on Path B
+  (local with logs), and the one-request-at-a-time lock stays as it is.
