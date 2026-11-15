@@ -678,6 +678,12 @@ at about 7 users and everyone after that waits. That's already visible in the
 measurement: one of the 10 runs waited 47 seconds for a slot, which is why the
 average wall time is 6.49 s when the work takes 1.73 s.
 
+*Note after The Improvement below:* these numbers were measured before the
+pacing change. The token-bucket limiter keeps the burst of 2 inside the same
+15-a-minute allowance, so the steady rate is now 13 calls a minute — about
+6.5 runs, not 7, in a busy minute. Tokens and dollars per run are unchanged;
+the pacing only moves when calls go out, not what they cost.
+
 **Run Log and Verdicts**
 
 Produced by `python capstone_trials.py --label before --trial N`, N = 1, 2, 3,
