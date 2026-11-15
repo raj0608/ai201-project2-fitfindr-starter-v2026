@@ -1,0 +1,399 @@
+{
+  "label": "before",
+  "trial": 1,
+  "started": "2026-11-15 06:12:46",
+  "summary": {
+    "C1": "5/5",
+    "C2": "5/5",
+    "C3": "5/5",
+    "C4": "5/5",
+    "C5": "5/5"
+  },
+  "attempts": {
+    "C1": [
+      {
+        "query": "vintage graphic tee under $30",
+        "pass": true,
+        "exit": 0,
+        "elapsed_s": 1.2,
+        "record": {
+          "run_id": "9e96075a",
+          "outcome": "error",
+          "error_type": "ModelTimeout",
+          "error_stage": "suggest_outfit",
+          "duration_ms": 1029
+        }
+      },
+      {
+        "query": "90s track jacket in size M",
+        "pass": true,
+        "exit": 0,
+        "elapsed_s": 0.77,
+        "record": {
+          "run_id": "81a7e47a",
+          "outcome": "error",
+          "error_type": "ModelTimeout",
+          "error_stage": "suggest_outfit",
+          "duration_ms": 652
+        }
+      },
+      {
+        "query": "silk slip dress in midi length under $40",
+        "pass": true,
+        "exit": 0,
+        "elapsed_s": 0.77,
+        "record": {
+          "run_id": "3fe7f327",
+          "outcome": "error",
+          "error_type": "ModelTimeout",
+          "error_stage": "suggest_outfit",
+          "duration_ms": 655
+        }
+      },
+      {
+        "query": "platform sneakers size 8",
+        "pass": true,
+        "exit": 0,
+        "elapsed_s": 0.76,
+        "record": {
+          "run_id": "ddc7a81f",
+          "outcome": "error",
+          "error_type": "ModelTimeout",
+          "error_stage": "suggest_outfit",
+          "duration_ms": 645
+        }
+      },
+      {
+        "query": "denim jacket under $50",
+        "pass": true,
+        "exit": 0,
+        "elapsed_s": 0.78,
+        "record": {
+          "run_id": "f82adcc0",
+          "outcome": "error",
+          "error_type": "ModelTimeout",
+          "error_stage": "suggest_outfit",
+          "duration_ms": 661
+        }
+      }
+    ],
+    "C3": [
+      {
+        "body": "{}",
+        "pass": true,
+        "http_status": 400,
+        "record": {
+          "ts": "2026-11-15T11:12:51.491+00:00",
+          "run_id": "da9a5954",
+          "query": null,
+          "outcome": "rejected",
+          "error_type": "BadRequest",
+          "error_stage": "serve",
+          "error": "Send JSON with a 'query' field, e.g. {\"query\": \"vintage graphic tee under $30\"}",
+          "http_status": 400,
+          "body_bytes": 2,
+          "duration_ms": 0,
+          "model_calls": 0
+        }
+      },
+      {
+        "body": "{\"query\": 123}",
+        "pass": true,
+        "http_status": 400,
+        "record": {
+          "ts": "2026-11-15T11:12:51.697+00:00",
+          "run_id": "65af309d",
+          "query": null,
+          "outcome": "rejected",
+          "error_type": "BadRequest",
+          "error_stage": "serve",
+          "error": "Send JSON with a 'query' field, e.g. {\"query\": \"vintage graphic tee under $30\"}",
+          "http_status": 400,
+          "body_bytes": 14,
+          "duration_ms": 0,
+          "model_calls": 0
+        }
+      },
+      {
+        "body": "[1, 2]",
+        "pass": true,
+        "http_status": 400,
+        "record": {
+          "ts": "2026-11-15T11:12:51.905+00:00",
+          "run_id": "b296806d",
+          "query": null,
+          "outcome": "rejected",
+          "error_type": "BadRequest",
+          "error_stage": "serve",
+          "error": "Send JSON with a 'query' field, e.g. {\"query\": \"vintage graphic tee under $30\"}",
+          "http_status": 400,
+          "body_bytes": 6,
+          "duration_ms": 0,
+          "model_calls": 0
+        }
+      },
+      {
+        "body": "not json",
+        "pass": true,
+        "http_status": 400,
+        "record": {
+          "ts": "2026-11-15T11:12:52.114+00:00",
+          "run_id": "5c1da69b",
+          "query": null,
+          "outcome": "rejected",
+          "error_type": "BadRequest",
+          "error_stage": "serve",
+          "error": "Send JSON with a 'query' field, e.g. {\"query\": \"vintage graphic tee under $30\"}",
+          "http_status": 400,
+          "body_bytes": 8,
+          "duration_ms": 0,
+          "model_calls": 0
+        }
+      },
+      {
+        "body": "{\"query\": \"   \"}",
+        "pass": true,
+        "http_status": 400,
+        "record": {
+          "ts": "2026-11-15T11:12:52.319+00:00",
+          "run_id": "4b664e4c",
+          "query": "   ",
+          "outcome": "rejected",
+          "error_type": "BadRequest",
+          "error_stage": "serve",
+          "error": "Send JSON with a 'query' field, e.g. {\"query\": \"vintage graphic tee under $30\"}",
+          "http_status": 400,
+          "body_bytes": 16,
+          "duration_ms": 0,
+          "model_calls": 0
+        }
+      }
+    ],
+    "C5": [
+      {
+        "query": "vintage graphic tee under $30",
+        "pass": true,
+        "record": {
+          "run_id": "381b7df6",
+          "outcome": "ok",
+          "model_calls": 2,
+          "prompt_tokens": 423,
+          "output_tokens": 148,
+          "duration_ms": 2387,
+          "wait_ms": 0
+        }
+      },
+      {
+        "query": "90s track jacket in size M",
+        "pass": true,
+        "record": {
+          "run_id": "087cb4a2",
+          "outcome": "ok",
+          "model_calls": 2,
+          "prompt_tokens": 427,
+          "output_tokens": 149,
+          "duration_ms": 1963,
+          "wait_ms": 0
+        }
+      },
+      {
+        "query": "silk slip dress in midi length under $40",
+        "pass": true,
+        "record": {
+          "run_id": "89ea09b8",
+          "outcome": "ok",
+          "model_calls": 2,
+          "prompt_tokens": 460,
+          "output_tokens": 185,
+          "duration_ms": 1724,
+          "wait_ms": 0
+        }
+      },
+      {
+        "query": "platform sneakers size 8",
+        "pass": true,
+        "record": {
+          "run_id": "4c954d94",
+          "outcome": "ok",
+          "model_calls": 2,
+          "prompt_tokens": 471,
+          "output_tokens": 182,
+          "duration_ms": 1867,
+          "wait_ms": 0
+        }
+      },
+      {
+        "query": "denim jacket under $50",
+        "pass": true,
+        "record": {
+          "run_id": "5115ab94",
+          "outcome": "ok",
+          "model_calls": 2,
+          "prompt_tokens": 420,
+          "output_tokens": 141,
+          "duration_ms": 1765,
+          "wait_ms": 0
+        }
+      }
+    ],
+    "C2": [
+      {
+        "query": "vintage graphic tee under $30",
+        "pass": true,
+        "fit_card": "Y2K Baby Tee — Butterfly Print, excellent condition — $18.00 on Depop. Thrifted, and ready to wear.",
+        "record": {
+          "run_id": "e30d7087",
+          "outcome": "ok_fallback",
+          "fallbacks": [
+            "suggest_outfit",
+            "create_fit_card"
+          ],
+          "fault": "empty",
+          "model_calls": 2
+        }
+      },
+      {
+        "query": "90s track jacket in size M",
+        "pass": true,
+        "fit_card": "90s Track Jacket — Navy/White Stripe, excellent condition — $45.00 on Poshmark. Thrifted, and ready to wear.",
+        "record": {
+          "run_id": "c93fbf09",
+          "outcome": "ok_fallback",
+          "fallbacks": [
+            "suggest_outfit",
+            "create_fit_card"
+          ],
+          "fault": "empty",
+          "model_calls": 2
+        }
+      },
+      {
+        "query": "silk slip dress in midi length under $40",
+        "pass": true,
+        "fit_card": "90s Silk Slip Dress — Floral, Midi Length, good condition — $30.00 on Depop. Thrifted, and ready to wear.",
+        "record": {
+          "run_id": "91b3a32b",
+          "outcome": "ok_fallback",
+          "fallbacks": [
+            "suggest_outfit",
+            "create_fit_card"
+          ],
+          "fault": "empty",
+          "model_calls": 2
+        }
+      },
+      {
+        "query": "platform sneakers size 8",
+        "pass": true,
+        "fit_card": "Platform Sneakers — White Chunky Sole, good condition — $48.00 on Poshmark. Thrifted, and ready to wear.",
+        "record": {
+          "run_id": "b79a918d",
+          "outcome": "ok_fallback",
+          "fallbacks": [
+            "suggest_outfit",
+            "create_fit_card"
+          ],
+          "fault": "empty",
+          "model_calls": 2
+        }
+      },
+      {
+        "query": "denim jacket under $50",
+        "pass": true,
+        "fit_card": "Denim Jacket — Light Wash, Cropped, excellent condition — $42.00 on Poshmark. Thrifted, and ready to wear.",
+        "record": {
+          "run_id": "55c6fd81",
+          "outcome": "ok_fallback",
+          "fallbacks": [
+            "suggest_outfit",
+            "create_fit_card"
+          ],
+          "fault": "empty",
+          "model_calls": 2
+        }
+      }
+    ],
+    "C4": [
+      {
+        "query": "silk slip dress in midi length under $40",
+        "pass": true,
+        "measured_sleep_ms": 194,
+        "record": {
+          "run_id": "3aa032de",
+          "duration_ms": 2046,
+          "wait_ms": 188,
+          "stage_ms": {
+            "search_listings": 240,
+            "suggest_outfit": 563,
+            "create_fit_card": 1243
+          },
+          "model_calls": 2
+        }
+      },
+      {
+        "query": "vintage graphic tee under $30",
+        "pass": true,
+        "measured_sleep_ms": 46323,
+        "record": {
+          "run_id": "5b189981",
+          "duration_ms": 48562,
+          "wait_ms": 46316,
+          "stage_ms": {
+            "search_listings": 235,
+            "suggest_outfit": 46843,
+            "create_fit_card": 1484
+          },
+          "model_calls": 2
+        }
+      },
+      {
+        "query": "silk slip dress in midi length under $40",
+        "pass": true,
+        "measured_sleep_ms": 239,
+        "record": {
+          "run_id": "0c3a24ac",
+          "duration_ms": 1937,
+          "wait_ms": 234,
+          "stage_ms": {
+            "search_listings": 257,
+            "suggest_outfit": 732,
+            "create_fit_card": 948
+          },
+          "model_calls": 2
+        }
+      },
+      {
+        "query": "90s track jacket in size M",
+        "pass": true,
+        "measured_sleep_ms": 266,
+        "record": {
+          "run_id": "c167ea98",
+          "duration_ms": 1772,
+          "wait_ms": 261,
+          "stage_ms": {
+            "search_listings": 245,
+            "suggest_outfit": 656,
+            "create_fit_card": 871
+          },
+          "model_calls": 2
+        }
+      },
+      {
+        "query": "silk slip dress in midi length under $40",
+        "pass": true,
+        "measured_sleep_ms": 46045,
+        "record": {
+          "run_id": "2f2a4ec0",
+          "duration_ms": 48207,
+          "wait_ms": 46040,
+          "stage_ms": {
+            "search_listings": 234,
+            "suggest_outfit": 654,
+            "create_fit_card": 47319
+          },
+          "model_calls": 2
+        }
+      }
+    ]
+  }
+}
