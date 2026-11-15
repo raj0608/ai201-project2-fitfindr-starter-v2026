@@ -131,3 +131,59 @@ the data was ambiguous.
      A number you missed stays where it is, gets diagnosed, and gets a fix
      attempted. That's where the points are.
      ───────────────────────────────────────────────────────────────────────── -->
+
+---
+
+# Capstone criteria — hardening the model-call stage (unit 9)
+
+Written before any capstone results existed. Each criterion is tested in
+**3 separate trials of 5 attempts each**. A target of 5/5 has to hold in all
+three trials to count as MET.
+
+## 1. A model timeout halts the run cleanly and is logged
+
+If the model times out, the run halts cleanly and logs the failure — 5/5 times.
+
+**Why this target:**
+To rescue the user from an infinite hang.
+
+---
+
+## 2. An empty model response triggers a logged fallback
+
+An empty model response triggers a logged fallback — 5/5.
+
+**Why this target:**
+The fallback ensures the user always gets a usable caption.
+
+---
+
+## 3. Malformed HTTP requests are rejected without invoking the agent
+
+Malformed HTTP requests are rejected without invoking the agent — 5/5.
+
+**Why this target:**
+So we don't waste time debugging our AI logic for a frontend typo.
+
+---
+
+## 4. Telemetry accounts for rate-limiter waiting
+
+Telemetry accounts for rate-limiter waiting — 5/5 tries.
+
+**Why this target:**
+If the wait time isn't accounted for separately from the model processing
+time, we can't tell the difference between a slow model and a congested quota
+bucket.
+
+---
+
+## 5. Normal runs make exactly two model calls
+
+Normal runs reliably make exactly two model calls — 5/5.
+
+**Why this target:**
+FitFindr's design dedicates exactly one call to the outfit suggestion and one
+to the fit card, and any run reporting 1 or 3 calls means a tool was skipped,
+or a tool got trapped in a retry loop that didn't surface as a timeout or rate
+limit error.
