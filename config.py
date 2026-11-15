@@ -86,6 +86,11 @@ REQUESTS_PER_MINUTE = 15
 SESSION_REQUEST_BUDGET = int(os.getenv("AI201_SESSION_BUDGET", "300"))
 MAX_RETRIES = int(os.getenv("AI201_MAX_RETRIES", "5"))
 
+# Capstone improvement: how many calls may go out back to back before pacing
+# kicks in. 2 = one whole agent run for a user who's been idle. See
+# generate.py::_wait_for_slot.
+PACING_BURST = int(os.getenv("AI201_PACING_BURST", "2"))
+
 CACHE_DIR = ROOT / ".cache"
 
 

@@ -122,8 +122,37 @@ def clear_cache() -> int:
 # ─── Pacing and guards ───────────────────────────────────────────────────────
 
 
+_bucket_tokens = float(config.PACING_BURST)
+_bucket_updated = None
+
+
 def _wait_for_slot() -> None:
-    """Sleep, if we've used up this minute's allowance."""
+    """
+    Sleep, if we've used up this minute's allowance.
+
+    CAPSTONE IMPROVEMENT. The sliding window below, on its own, let 15 calls
+    straight through and then made the 16th wait for the oldest to age out —
+    about 46 seconds, all landing on one unlucky run (9 of 75 runs in the
+    before-trials waited over 30 s). A token bucket in front of it spreads the
+    same allowance out: PACING_BURST calls may go immediately (one whole run
+    for an idle user), and after that one token comes back every
+    60 / (REQUESTS_PER_MINUTE - PACING_BURST) seconds. Burst plus refill can't
+    exceed REQUESTS_PER_MINUTE in any 60 s window, so the window check below
+    stays as a backstop rather than the thing that does the pacing.
+    """
+    global _bucket_tokens, _bucket_updated
+    rate = max(1, config.REQUESTS_PER_MINUTE - config.PACING_BURST) / 60.0  # tokens/s
+    now = time.monotonic()
+    if _bucket_updated is not None:
+        _bucket_tokens = min(config.PACING_BURST, _bucket_tokens + (now - _bucket_updated) * rate)
+    _bucket_updated = now
+    if _bucket_tokens < 1.0:
+        _sleep((1.0 - _bucket_tokens) / rate)
+        now = time.monotonic()
+        _bucket_tokens = 1.0
+        _bucket_updated = now
+    _bucket_tokens -= 1.0
+
     now = time.monotonic()
     _call_times[:] = [t for t in _call_times if now - t < 60.0]
 
