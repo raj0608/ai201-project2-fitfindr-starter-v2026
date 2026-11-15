@@ -677,3 +677,195 @@ calls, and the free tier allows 15 a minute, so a busy minute would be capped
 at about 7 users and everyone after that waits. That's already visible in the
 measurement: one of the 10 runs waited 47 seconds for a slot, which is why the
 average wall time is 6.49 s when the work takes 1.73 s.
+
+**Run Log and Verdicts**
+
+Produced by `python capstone_trials.py --label before --trial N`, N = 1, 2, 3,
+run on 2026-11-15 after `criteria.md` was committed (`b5a69ee`), results
+committed in `537a648`. Each run is 5 attempts per criterion; cache off;
+how each attempt is scored is fixed in code at the top of
+`capstone_trials.py`. Raw results: `results/capstone_before_trial{1,2,3}.json`,
+log records: `logs/capstone_before.jsonl`.
+
+| Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
+|---|---|---|---|---|---|
+| 1. Model timeout halts the run cleanly and is logged | 5 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 2. Empty model response triggers a logged fallback | 5 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 3. Malformed HTTP requests rejected without invoking the agent | 5 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 4. Telemetry accounts for rate-limiter waiting | 5 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 5. Normal runs make exactly two model calls | 5 of 5 | 5/5 | 5/5 | 5/5 | MET |
+
+Real output, one attempt per criterion, from Run 1
+(`results/capstone_before_trial1.json`):
+
+Criterion 1 — `AI201_MODEL_TIMEOUT=0.01 python app.py ask '...'`; the record
+written by `agent.py::run_agent` → `runlog.py::write`. Exit code 0, 1.2 s:
+
+```json
+{"run_id": "9e96075a", "query": "vintage graphic tee under $30", "outcome": "error", "error_type": "ModelTimeout", "error_stage": "suggest_outfit", "error": "The stylist model didn't answer within 0.01s while running suggest_outfit, so FitFindr stopped instead of leaving you waiting. Try again in a moment.", "fit_card": null, "duration_ms": 1029, "stage_ms": {"search_listings": 511, "suggest_outfit": 518}, "model_calls": 1, "timeout_s": 0.01}
+```
+
+Criterion 2 — `AI201_FAULT=empty`; fit card from `agent.py::_fit_card_fallback`,
+record from `agent.py::run_agent`:
+
+```json
+{"query": "silk slip dress in midi length under $40", "fit_card": "90s Silk Slip Dress — Floral, Midi Length, good condition — $30.00 on Depop. Thrifted, and ready to wear.", "record": {"run_id": "91b3a32b", "outcome": "ok_fallback", "fallbacks": ["suggest_outfit", "create_fit_card"], "fault": "empty", "model_calls": 2}}
+```
+
+Criterion 3 — `POST /ask` with body `{"query": 123}`; response and record from
+`serve.py::ask`. HTTP 400, no agent-run record appeared:
+
+```json
+{"run_id": "65af309d", "query": null, "outcome": "rejected", "error_type": "BadRequest", "error_stage": "serve", "error": "Send JSON with a 'query' field, e.g. {\"query\": \"vintage graphic tee under $30\"}", "http_status": 400, "body_bytes": 14, "duration_ms": 0, "model_calls": 0}
+```
+
+Criterion 4 — back-to-back runs; `wait_ms` from `generate.py::wait_seconds`,
+`measured_sleep_ms` from the harness's own timer around `time.sleep`:
+
+```json
+{"query": "vintage graphic tee under $30", "measured_sleep_ms": 46323, "record": {"run_id": "5b189981", "duration_ms": 48562, "wait_ms": 46316, "stage_ms": {"search_listings": 235, "suggest_outfit": 46843, "create_fit_card": 1484}, "model_calls": 2}}
+```
+
+Criterion 5 — a normal query, record from `agent.py::run_agent`:
+
+```json
+{"run_id": "381b7df6", "outcome": "ok", "model_calls": 2, "prompt_tokens": 423, "output_tokens": 148, "duration_ms": 2387, "wait_ms": 0}
+```
+
+*All five MET — were the targets too low?* Partly, yes. Criteria 2 and 3 are
+deterministic code paths with the fault switched on: an empty answer always
+takes the fallback branch and a bad body always hits the 400, so 5/5 was close
+to guaranteed unless I'd written a bug. Criterion 1 was the one I distrusted
+most: `AI201_MODEL_TIMEOUT=0.01` fails at connection time (about 0.8 s), so it
+never tested what the criterion is about — a model that takes the request and
+then hangs. I tested that separately: pointed the client at a local socket
+that accepts the connection and never replies, with a 3 s timeout. The run
+stopped at 3.2 s with `ModelTimeout` in `suggest_outfit`. So criterion 1 holds
+on a real stall too; it just didn't have to prove it.
+
+The criterion I'd tighten is **1**, to add the time bound it was missing: *"When
+the model accepts a request and then never answers, the run halts within
+MODEL_TIMEOUT_S + 2 s and is logged as ModelTimeout — 5 of 5."* As written,
+a run that hangs 19 s and then halts passes, and the reason I gave was about
+hangs.
+
+*What the run data showed that no criterion caught.* Criterion 4 was MET —
+the wait was accounted for to within 10 ms every time — and the numbers it
+accounted for were the most useful thing in the whole run. In 9 of 75 complete
+runs the user waited more than 30 s, worst case 47.1 s (a 48.9 s run), while
+the median run needed 1.9 s of work. The pasted criterion 4 record is one of
+them: `suggest_outfit` took 46.8 s, of which 46.3 s was sleeping.
+
+The stage is the rate limiter, `generate.py::_wait_for_slot`, and the
+mechanism is that it's a 60-second sliding window with nothing in front of it:
+it lets 15 calls straight through, then blocks the 16th until the oldest call
+ages out of the window — about 46 s — so the waits come out bimodal, ~0 s or
+~46 s, and the whole minute's debt lands on one unlucky run. It also sits
+outside the hardening I built: the 20 s timeout covers the request, and this
+sleep happens before the request is sent, so the "rescue the user from a hang"
+reason behind criterion 1 doesn't reach it.
+
+**The Improvement**
+
+*What I changed:* a token bucket in front of the sliding window in
+`generate.py::_wait_for_slot`, plus `PACING_BURST = 2` in `config.py`. Two
+calls can go immediately — one whole agent run, for a user who's been idle —
+and after that a token comes back every 60 / (15 − 2) = 4.6 s. Burst plus
+refill can't exceed 15 calls in any 60 s window, so the old window check stays
+as a backstop. Nothing else changed. Committed in `a167ff9`, before the after
+runs.
+
+*Why this one:* it follows the diagnosis above — the problem was where the
+waiting landed, not how much of it there was, and spreading it is the direct
+fix for "the whole minute's debt lands on one run".
+
+Run log — After (`python capstone_trials.py --label after --trial N`, same
+harness, same scoring; `results/capstone_after_trial{1,2,3}.json`,
+`logs/capstone_after.jsonl`):
+
+| Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
+|---|---|---|---|---|---|
+| 1. Model timeout halts the run cleanly and is logged | 5 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 2. Empty model response triggers a logged fallback | 5 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 3. Malformed HTTP requests rejected without invoking the agent | 5 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 4. Telemetry accounts for rate-limiter waiting | 5 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 5. Normal runs make exactly two model calls | 5 of 5 | 5/5 | 5/5 | 5/5 | MET |
+
+Side by side, from every complete run in the two trial logs (back-to-back
+runs in one process, so the limiter is busy):
+
+| | Before (75 runs) | After (45 runs) |
+|---|---|---|
+| Worst single run | 48.9 s | **9.8 s** |
+| Worst limiter wait in one run | 47.1 s | **7.8 s** |
+| Runs that waited > 30 s | 9 | **0** |
+| Median run | **2.0 s** | 9.2 s |
+| Mean run | **7.4 s** | 8.7 s |
+
+Criterion 4 records after, one per run (`wait_ms` / measured sleep, ms):
+`7698/7708, 7635/7645, 7313/7323, 7179/7189, 7278/7288` (Run 1).
+
+*Did it help?* It did what it was aimed at, and it cost something. The worst
+case went from 48.9 s to 9.8 s and no run waited more than 8 s, while all five
+criteria stayed 5/5 — nothing I'd already hardened regressed. But under
+sustained back-to-back load the typical run got slower: median 2.0 s → 9.2 s,
+mean 7.4 s → 8.7 s. Before, most runs went free and a few paid for everyone;
+now everyone pays a little, and slightly more in total because the steady rate
+is 13 calls a minute instead of 15 (the burst of 2 comes out of the same 15).
+For one user asking now and then, nothing changed: a run after an idle period
+still waited 0 ms (checked with `app.py ask`, `wait_ms: 0`). I'd keep the
+change — a predictable 9 s beats a 2 s that is sometimes 49 s — but it's a
+trade, not a free win.
+
+**What's Still Broken**
+
+All five criteria were MET, before and after, so what's left is about where
+the targets were soft and what the improvement cost.
+
+- **Criterion 1 had no time bound.** I'd tighten it to "halts within
+  MODEL_TIMEOUT_S + 2 s when the model accepts the request and never answers"
+  and make the stalled-socket test part of `capstone_trials.py` instead of a
+  one-off probe. I stopped because the one-off already passed (3.2 s against
+  a 3 s timeout) and the unit's change budget went to the limiter.
+- **Criteria 2 and 3 can't really fail.** They test my own branches with the
+  fault forced on. A real empty response might be transient; the fallback
+  takes over on the first empty answer without retrying once. I didn't add a
+  retry because it would change criterion 5's call count, which is exactly the
+  kind of interaction I'd want a criterion for first.
+- **Steady-load throughput dropped from 15 to 13 calls a minute.** The fix
+  traded average speed for worst-case speed. A burst of 1 would win back one
+  call a minute but make every idle run wait 4.6 s for its second call.
+- **The limiter wait still isn't covered by any timeout.** It's now bounded by
+  the pacing (about 9 s worst case), not by a deadline. With more than one
+  user, `serve.py` queues requests behind a lock, so a waiting request's real
+  delay is the queue plus the pacing — neither shows in its own `wait_ms`.
+
+*What I'd do next, if this were real:* put a whole-run deadline on `/ask` —
+a budget covering queue time, pacing and the model call together, logged as
+its own `error_type` — because the hardening this unit bounds each piece
+separately and the user only ever experiences the sum. That's the first thing
+that would fail with two users at once, and nothing measures it yet.
+
+**How I Used AI**
+
+1. *Choosing what to extend.* I gave Claude the capstone brief and asked which
+   of my four projects would be least complex to extend. It assessed all four
+   repos and ranked Provenance Guard first, because it already had structured
+   logging. I asked it to compare just the Unofficial Guide and FitFindr, and
+   picked FitFindr: I knew its failure modes best, and unit 4 had already
+   shown me the model-call stage was its weak point. Claude then verified,
+   by stubbing the model call, that `QuotaGuard` and the rate-limit
+   `RuntimeError` really did escape `run_agent` before I wrote that into
+   The Shape.
+2. *Checking my criteria without letting it write them.* I wrote the five
+   criteria and asked Claude to run each through the three self-check
+   questions without rewriting them. It pointed out that criterion 1 had no
+   time bound and that `generate.py` counts every retry attempt as a model
+   call, which could put a 3 into criterion 5. I kept my wording as written
+   and had the tests follow the assignment's 3-runs-of-5 format. The time-bound
+   point is now my tightened criterion 1 above.
+
+Claude also wrote the hardening code, the run log, the trial harness and the
+cost script, and drafted these README sections from the committed results;
+I directed each step and checked the numbers against the JSON results and
+log files before committing.
