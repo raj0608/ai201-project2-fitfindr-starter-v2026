@@ -854,6 +854,9 @@ that would fail with two users at once, and nothing measures it yet.
 
 **How I Used AI**
 
+Used AI for generating scripts, error diagnosis, testing against criterias and
+generating reports.
+
 1. *Choosing what to extend.* I gave Claude the capstone brief and asked which
    of my four projects would be least complex to extend. It assessed all four
    repos and ranked Provenance Guard first, because it already had structured
