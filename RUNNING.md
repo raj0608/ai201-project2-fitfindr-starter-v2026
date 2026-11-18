@@ -69,11 +69,11 @@ tail -n 5 logs/runs.jsonl
 
 | Failure | How |
 |---|---|
-| Model times out | `AI201_MODEL_TIMEOUT=0.01` |
+| Model times out | `AI201_CACHE=0 AI201_MODEL_TIMEOUT=0.01` |
 | Model answers with empty text | `AI201_FAULT=empty` |
 | Rate limited past every retry | `AI201_FAULT=ratelimit` (add `AI201_MAX_RETRIES=2` to keep it short) |
 | Model can't be reached | `AI201_MODEL=no-such-model` |
-| Session request budget used up | `AI201_SESSION_BUDGET=0` |
+| Session request budget used up | `AI201_CACHE=0 AI201_SESSION_BUDGET=0` |
 | Malformed request | `POST /ask` with `{}` or `{"query": 123}` |
 
 e.g. `AI201_FAULT=empty python serve.py`.

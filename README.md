@@ -73,13 +73,18 @@ Each one is a single command. "Model calls" is printed on the last line.
 **Breaking it on purpose** — each failure is switched on by one setting in
 front of the command:
 
+(`AI201_CACHE=0` turns off the saved-answer cache. Without it, a question
+you've already asked is answered from the cache and never reaches the AI, so
+the failure never happens. The `AI201_FAULT` switches turn the cache off on
+their own.)
+
 | Try this | What you should see |
 |---|---|
-| `AI201_MODEL_TIMEOUT=0.01 python app.py ask 'denim jacket under $50'` | "The stylist model didn't answer within 0.01s…" — stops cleanly, no hang |
+| `AI201_CACHE=0 AI201_MODEL_TIMEOUT=0.01 python app.py ask 'denim jacket under $50'` | "The stylist model didn't answer within 0.01s…" — stops cleanly, no hang |
 | `AI201_FAULT=empty python app.py ask 'denim jacket under $50'` | The AI "answers" with nothing, so you get a plain backup fit card: "…$42.00 on Poshmark. Thrifted, and ready to wear." |
 | `AI201_FAULT=ratelimit AI201_MAX_RETRIES=2 python app.py ask 'denim jacket under $50'` | Two "[rate limit] … Waiting" lines, then "The model is rate-limiting this API key…" |
 | `AI201_MODEL=no-such-model python app.py ask 'denim jacket under $50'` | "The model name 'no-such-model' did not resolve…" |
-| `AI201_SESSION_BUDGET=0 python app.py ask 'denim jacket under $50'` | "This session has used its request budget…" |
+| `AI201_CACHE=0 AI201_SESSION_BUDGET=0 python app.py ask 'denim jacket under $50'` | "This session has used its request budget…" |
 
 **Bad requests to the web server** (with `python serve.py` running):
 

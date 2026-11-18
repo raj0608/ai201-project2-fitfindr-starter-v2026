@@ -377,7 +377,9 @@ def generate(
     """
     global _session_calls, _cache_hits
 
-    use_cache = cache and config.CACHE_ENABLED
+    # A fault switch means "test the bad path": a cached answer would skip the
+    # model call and the fault with it (found rehearsing the demo).
+    use_cache = cache and config.CACHE_ENABLED and not config.FAULT
     temperature = config.TEMPERATURE if temperature is None else temperature
     key = _cache_key(prompt, system, temperature)
 

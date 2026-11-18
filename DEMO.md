@@ -52,7 +52,7 @@ python app.py ask 'vintage graphic tee under $30'
 **Show** one failure (terminal 1):
 
 ```bash
-AI201_MODEL_TIMEOUT=0.01 python app.py ask 'denim jacket under $50'
+AI201_CACHE=0 AI201_MODEL_TIMEOUT=0.01 python app.py ask 'denim jacket under $50'
 ```
 
 > "Here I forced a timeout. Instead of hanging, it stops and tells the user
