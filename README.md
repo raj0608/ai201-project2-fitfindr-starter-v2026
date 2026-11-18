@@ -1,22 +1,108 @@
 # FitFindr
 
-> ### 👋 Start here
->
-> **New to this repo? Read [RUNNING.md](RUNNING.md) first** — setup, every
-> command, and what to do when something breaks.
->
-> Once `python test.py` passes:
->
-> ```bash
-> python app.py listings --full -n 6      # read the data (Milestone 1)
-> python app.py fields                    # what you can filter on
-> python app.py ask 'vintage graphic tee under $30'
-> ```
->
-> All three tools are stubs, so that last command will do nothing useful yet.
-> That's the starting position.
->
-> **The rest of this file is your submission.** Fill it in as you go.
+**FitFindr finds you a secondhand clothing item and tells you how to wear it.**
+You type what you're looking for ("vintage graphic tee under $30"). It searches
+40 thrift listings, picks the best match, then asks an AI model for an outfit
+idea and a short social-media caption (a "fit card") about the find.
+
+## Try it yourself (about 5 minutes)
+
+**You need:** Python 3.11, 3.12 or 3.13 (not 3.14), and a free Gemini API key
+from [aistudio.google.com](https://aistudio.google.com) — the same kind of key
+used in every unit of this course.
+
+**1. Set it up (once)**
+
+```bash
+git clone https://github.com/raj0608/ai201-project2-fitfindr-starter-v2026.git
+cd ai201-project2-fitfindr-starter-v2026
+python3 -m venv .venv
+source .venv/bin/activate            # Windows: .venv\Scripts\Activate.ps1
+pip install -r requirements-lock.txt
+cp .env.example .env                 # Windows: copy .env.example .env
+```
+
+Open `.env` and replace `your_key_here` with your key. Then check it:
+
+```bash
+python test.py                       # should end with "10 passed, 0 failed"
+```
+
+**2. Ask it something**
+
+```bash
+python app.py ask 'vintage graphic tee under $30'
+```
+
+Use **single quotes** around the question. With double quotes, `$30`
+disappears in some terminals.
+
+**3. Or run it as a web server**
+
+```bash
+python serve.py                      # leave this running
+```
+
+In a second terminal:
+
+```bash
+curl -s -X POST http://localhost:8080/ask \
+  -H 'Content-Type: application/json' \
+  -d '{"query": "vintage graphic tee under $30"}'
+```
+
+It runs on port **8080**, not 5000 — on Macs, port 5000 belongs to AirPlay.
+
+Every run, good or bad, is written as one line to `logs/runs.jsonl`. See the
+latest with `tail -n 1 logs/runs.jsonl`.
+
+## Sample tests — try these
+
+Each one is a single command. "Model calls" is printed on the last line.
+
+**Normal use**
+
+| Try this | What you should see |
+|---|---|
+| `python app.py ask 'vintage graphic tee under $30'` | Found a Y2K butterfly baby tee ($18, Depop), an outfit idea, and a fit card that mentions $18. 2 model calls |
+| `python app.py ask '90s track jacket in size M'` | A navy/white track jacket ($45, Poshmark) |
+| `python app.py ask 'denim jacket under $50' --empty-wardrobe` | Works with no saved clothes — the outfit idea is general styling advice instead of naming your pieces |
+| `python app.py ask 'designer ballgown size XXS under $5'` | "No listings matched…" with a tip on what to change. **0 model calls** — it stops before asking the AI |
+| `python app.py ask '!!!'` | Same "No listings matched…" message, no crash |
+
+**Breaking it on purpose** — each failure is switched on by one setting in
+front of the command:
+
+| Try this | What you should see |
+|---|---|
+| `AI201_MODEL_TIMEOUT=0.01 python app.py ask 'denim jacket under $50'` | "The stylist model didn't answer within 0.01s…" — stops cleanly, no hang |
+| `AI201_FAULT=empty python app.py ask 'denim jacket under $50'` | The AI "answers" with nothing, so you get a plain backup fit card: "…$42.00 on Poshmark. Thrifted, and ready to wear." |
+| `AI201_FAULT=ratelimit AI201_MAX_RETRIES=2 python app.py ask 'denim jacket under $50'` | Two "[rate limit] … Waiting" lines, then "The model is rate-limiting this API key…" |
+| `AI201_MODEL=no-such-model python app.py ask 'denim jacket under $50'` | "The model name 'no-such-model' did not resolve…" |
+| `AI201_SESSION_BUDGET=0 python app.py ask 'denim jacket under $50'` | "This session has used its request budget…" |
+
+**Bad requests to the web server** (with `python serve.py` running):
+
+| Try this | What you should see |
+|---|---|
+| `curl -s -X POST http://localhost:8080/ask -H 'Content-Type: application/json' -d '{}'` | HTTP 400, "Send JSON with a 'query' field…" |
+| same, with `-d '{"query": 123}'` | HTTP 400, same message |
+| same, with `-d 'hello'` | HTTP 400, same message |
+
+After any of these, `tail -n 1 logs/runs.jsonl` shows the record it left:
+`outcome` is `ok`, `ok_fallback`, `no_results`, `error` or `rejected`, and for
+errors `error_type` says which kind.
+
+**Known rough edge:** a wardrobe in the wrong shape, like
+`-d '{"query": "denim jacket under $50", "wardrobe": {"items": "lol"}}'`,
+doesn't crash, but it comes back as HTTP 200 with a `TypeError` message instead
+of a clean 400. The safety net catches it; the input check doesn't.
+
+More detail on every command: [RUNNING.md](RUNNING.md). What this project was
+built and tested against: the **Capstone** section at the end of this file.
+
+> The sections below are the course write-ups from units 3, 4 and 9, kept
+> as they were submitted.
 
 ---
 

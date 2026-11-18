@@ -40,12 +40,12 @@ python test.py                  # 10 passed
 python serve.py
 ```
 
-That's the system: an HTTP server on `http://localhost:5000` (or `$PORT`) that
+That's the system: an HTTP server on `http://localhost:8080` (or `$PORT`) that
 runs the agent once per `POST /ask` and logs every request. Ask it something
 from a second terminal:
 
 ```bash
-curl -s -X POST http://localhost:5000/ask \
+curl -s -X POST http://localhost:8080/ask \
   -H 'Content-Type: application/json' \
   -d '{"query": "vintage graphic tee under $30"}'
 ```
@@ -205,7 +205,7 @@ On your machine:
 
 ```bash
 python serve.py
-curl -X POST http://localhost:5000/ask \
+curl -X POST http://localhost:8080/ask \
   -H 'Content-Type: application/json' \
   -d '{"query": "vintage graphic tee under $30"}'
 ```
@@ -218,7 +218,7 @@ gunicorn serve:app
 
 | Thing | What it means |
 |---|---|
-| `PORT` | The host tells your app which port to listen on by setting this. Both `serve.py` and `gunicorn` read it, and `serve.py` falls back to `5000` on your machine. Don't hard-code a port |
+| `PORT` | The host tells your app which port to listen on by setting this. Both `serve.py` and `gunicorn` read it, and `serve.py` falls back to `8080` on your machine. Don't hard-code a port |
 | `POST /ask` | `{"query": "...", "wardrobe": {...}}` — wardrobe optional. Returns the session dict, `error` and all |
 | `GET /health` | Says `ok` if the app is awake |
 | It answers one request at a time | On purpose. A second request waits for the first to finish, and prints `[serve] another request is still running` while it waits. An MCP tool call starts a whole second Python process, and the free tier's 512 MB has no room for two of those at once — and `generate.py`'s rate-limit counting assumes one caller. The reasoning is written out in `serve.py` |

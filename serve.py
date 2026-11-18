@@ -190,7 +190,11 @@ if __name__ == "__main__":
     # listen on through PORT, and it reaches your process from outside the
     # container — bind 127.0.0.1 and nothing but the container itself can
     # connect, which looks exactly like a broken app from the browser.
-    port = int(os.getenv("PORT", "5000"))
+    #
+    # Not 5000: on macOS 12+ the AirPlay Receiver already listens on 5000, so
+    # every request lands on AirPlay and comes back "403 Forbidden" — found
+    # while rehearsing the demo.
+    port = int(os.getenv("PORT", "8080"))
 
     # Never on by default. Flask's debugger executes code typed into a browser,
     # and a deployed app with it on is a stranger's shell. Set AI201_DEBUG=1 in
